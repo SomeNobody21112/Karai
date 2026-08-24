@@ -1,2 +1,2 @@
 # Karai
-AI-powered forensic triage for the MPLAD Scheme — surfaces anomalies, completion risk, and ₹-at-risk from real work-level data. Ranks investigation leads, not verdicts.
+An AI-powered system to detect anomalies, inefficiencies, and investigation leads in MPLAD Scheme implementation, built on ~211k real work-level records. It combines work-archetype clustering, peer-conditional statistical outlier detection, survivorship-corrected completion-risk (money-at-risk) scoring, entity behavioural change-point detection, and audit-ROI targeting to rank where auditors should look first — deliberately outputting prioritised leads with evidence, never fraud verdicts. Submission for Smart India Hackathon 2026, PS SIH26102 (MoSPI).
