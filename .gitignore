@@ -21,3 +21,7 @@ __pycache__/
 # Frontend (Phase 9)
 node_modules/
 frontend/dist/
+
+# Frontend build
+frontend/node_modules/
+frontend/dist/

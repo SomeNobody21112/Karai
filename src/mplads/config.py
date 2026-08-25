@@ -68,7 +68,49 @@ DEDUP_KEEP: str = "last"
 # Set in Phase 2 from the data, not guessed. Every censoring decision and every
 # "as of" statement in the product resolves to this one value.
 
-SNAPSHOT_DATE = None  # type: ignore[assignment]  # set in Phase 2
+#: Censoring anchor = max(RECOMMENDATION_DATE), measured in Phase 0. Every "as of" and
+#: every survival duration resolves to this one date. Anchoring on max(all dates) would
+#: land in 2044 (out-of-window completion typos) and inflate open durations by ~18 years.
+import datetime as _dt
+
+SNAPSHOT_DATE: _dt.date = _dt.date(2026, 5, 26)
+
+# --- Modelling constants --------------------------------------------------
+
+#: Peer group must have at least this many works before it yields a percentile; else the
+#: group backs off to a broader level. Groups below it at the global level never fire.
+MIN_PEERS: int = 30
+
+#: A peer group must have at least this many observed completions before its survival
+#: curve is trusted; else it backs off to the parent level.
+MIN_EVENTS: int = 30
+
+#: Completion-risk horizon in days.
+RISK_HORIZON_DAYS: int = 365
+
+#: Amount / duration is only "unusual" above this within-peer percentile.
+PEER_PERCENTILE_GATE: float = 0.90
+
+#: Transparent fusion weights — NOT a learned model. Each maps a normalised signal in
+#: [0,1] to its contribution. A work is only surfaced when >= 2 independent signal
+#: *families* fire (the corroboration rule), never on one signal alone.
+SIGNAL_WEIGHTS: dict[str, float] = {
+    "peer_amount": 0.60,      # family: amount
+    "peer_duration": 0.55,    # family: duration
+    "completion_risk": 0.60,  # family: duration
+    "conformance": 0.75,      # family: lifecycle
+    "change_point": 0.50,     # family: behaviour
+}
+
+#: Which family each signal belongs to. Confidence counts distinct families, not signals,
+#: so two signals reading the same clock cannot manufacture corroboration.
+SIGNAL_FAMILY: dict[str, str] = {
+    "peer_amount": "amount",
+    "peer_duration": "duration",
+    "completion_risk": "duration",
+    "conformance": "lifecycle",
+    "change_point": "behaviour",
+}
 
 
 def ensure_dirs() -> None:
