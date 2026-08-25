@@ -25,6 +25,10 @@ app.add_middleware(
 class Store:
     def __init__(self, artifacts: Path):
         self.stats = json.loads((artifacts / "stats.json").read_text(encoding="utf-8"))
+        metrics_path = artifacts / "models" / "metrics.json"
+        self.metrics = (
+            json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
+        )
         cases = json.loads((artifacts / "case_files.json").read_text(encoding="utf-8"))
         self.cases_by_ref = {c["work_ref"]: c for c in cases}
         # Worklist summary rows, already ranked by audit-ROI in the pipeline.
@@ -95,3 +99,8 @@ def case(work_ref: str) -> dict:
 @app.get("/api/states")
 def states() -> list[dict]:
     return store().stats["by_state"]
+
+
+@app.get("/api/models")
+def models() -> dict:
+    return store().metrics

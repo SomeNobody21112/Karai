@@ -39,6 +39,12 @@ export default function Worklist() {
       />
       <div className="content">
         <Hitl />
+        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-dim)" }}>
+          <strong style={{ color: "var(--text)" }}>What this list is:</strong> every work below was
+          flagged by <strong>at least two independent kinds of evidence</strong>. It is ordered so
+          the works with the most money-at-risk per hour of audit are on top. Click any row to see
+          the full reason and the recommended next step. Nothing here is an accusation.
+        </div>
         <div className="toolbar">
           <input className="input" placeholder="Search description or implementing agency…"
             value={q} onChange={(e) => setQ(e.target.value)} />

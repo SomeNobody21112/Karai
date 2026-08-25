@@ -34,6 +34,13 @@ export default function CaseFile() {
       <div className="content">
         <Link to="/worklist" className="back">← Back to worklist</Link>
 
+        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-dim)" }}>
+          <strong style={{ color: "var(--text)" }}>Plain summary:</strong> this work was put on the
+          audit list because {c.n_signal_families} independent kinds of evidence agreed something is
+          worth checking. About <strong>{rupees(c.exposure_rupees)}</strong> may be tied up if it does
+          not finish. Read the evidence below, then see the recommended next step for a human.
+        </div>
+
         <div className="case-head">
           <div>
             <div className="case-title">{id.description || "MPLADS Work"}</div>

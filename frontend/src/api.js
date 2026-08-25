@@ -9,6 +9,7 @@ async function get(path) {
 export const api = {
   stats: () => get("/api/stats"),
   states: () => get("/api/states"),
+  models: () => get("/api/models"),
   worklist: (params = {}) => {
     const q = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== "" && v != null)

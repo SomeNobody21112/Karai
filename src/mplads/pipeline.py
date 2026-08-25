@@ -15,10 +15,9 @@ import logging
 import re
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from mplads import config
 
@@ -44,45 +43,23 @@ def add_activity_category(works: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_archetypes(works: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Assign a learned semantic archetype per work and label each with its own top terms.
+    """Attach the trained archetype cluster and its label to each work.
 
-    Cluster membership comes from the cached MiniLM embedding clustering (reused as a cache
-    to avoid a 45-minute recompute); the human-readable labels are generated here by
-    c-TF-IDF over each cluster's descriptions, so the interpretation layer is our own.
+    Membership comes from our own MiniBatchKMeans model (see mplads.train); labels are the
+    c-TF-IDF distinctive terms produced during training. Run `mplads train` first.
     """
-    amap = pd.read_parquet(config.REFERENCE / "models" / "archetype" / "archetypes_map.parquet")
-    works = works.merge(
-        amap.rename(columns={"description": "work_description"}),
-        on="work_description",
-        how="left",
-    )
+    models = config.ARTIFACTS / "models"
+    assign = pd.read_parquet(models / "archetype_assignment.parquet")
+    catalog = pd.read_parquet(models / "archetype_catalog.parquet")
+
+    works = works.merge(assign, on="work_description", how="left")
     works["archetype_id"] = works["archetype_id"].astype("Int64")
-    assigned = int(works["archetype_id"].notna().sum())
-    LOGGER.info("archetypes: %s of %s works assigned", f"{assigned:,}", f"{len(works):,}")
-
-    # c-TF-IDF: concatenate each cluster's descriptions, rank distinctive terms.
-    docs = (
-        works.dropna(subset=["archetype_id"])
-        .groupby("archetype_id")["work_description"]
-        .apply(lambda s: " ".join(s.dropna().astype(str).head(2000)))
-    )
-    vec = TfidfVectorizer(max_features=4000, stop_words="english", ngram_range=(1, 2), min_df=2)
-    matrix = vec.fit_transform(docs.values)
-    terms = np.array(vec.get_feature_names_out())
-    labels = {}
-    for row, aid in enumerate(docs.index):
-        top = terms[matrix[row].toarray().ravel().argsort()[::-1][:3]]
-        labels[int(aid)] = " / ".join(top)
-
-    sizes = works["archetype_id"].value_counts()
-    catalog = pd.DataFrame(
-        {
-            "archetype_id": list(labels),
-            "label": [labels[a] for a in labels],
-            "n_works": [int(sizes.get(a, 0)) for a in labels],
-        }
-    ).sort_values("n_works", ascending=False)
+    labels = dict(zip(catalog["archetype_id"], catalog["label"]))
     works["archetype_label"] = works["archetype_id"].map(labels).fillna("unassigned")
+
+    catalog = catalog.rename(columns={"n_descriptions": "n_works"})
+    LOGGER.info("archetypes: %s of %s works assigned (trained KMeans)",
+                f"{int(works['archetype_id'].notna().sum()):,}", f"{len(works):,}")
     return works, catalog
 
 
@@ -184,43 +161,22 @@ def add_peer_comparison(works: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_completion_risk(works: pd.DataFrame) -> pd.DataFrame:
-    """Kaplan-Meier survival per peer group, censored at the snapshot. Not a fraud score.
+    """Attach the trained Cox model's completion-risk score. Not a score of wrongdoing.
 
-    risk_score for an open work = 1 - S_group(horizon): the share of comparable works that
-    have NOT completed by the horizon. Groups with too few events back off to global. The
-    score is a completion-risk estimate; it says nothing about wrongdoing.
+    risk_score = 1 - S_i(horizon): the model's estimated chance this work has NOT completed
+    within the horizon, given its amount, sanction status, state and archetype. Completed
+    works carry 0. Run `mplads train` first.
     """
     works = works.copy()
-    works["risk_score"] = 0.0
-    works["risk_level_used"] = "none"
+    risk = pd.read_parquet(config.ARTIFACTS / "models" / "risk_scores.parquet")
+    works = works.merge(risk, on="work_ref", how="left")
 
-    fit = works.dropna(subset=["duration_days"])
-    fit = fit[fit["duration_days"] >= 0]
-
-    def km_risk(frame: pd.DataFrame) -> float | None:
-        if int(frame["event_observed"].sum()) < config.MIN_EVENTS:
-            return None
-        kmf = KaplanMeierFitter().fit(frame["duration_days"], frame["event_observed"])
-        surv = float(kmf.predict(config.RISK_HORIZON_DAYS))
-        return max(0.0, min(1.0, 1.0 - surv))
-
-    global_risk = km_risk(fit) or 0.5
-    group_risk = {}
-    for gid, frame in fit.groupby("peer_group_id"):
-        r = km_risk(frame)
-        if r is not None:
-            group_risk[gid] = r
-
-    open_mask = works["is_open"] & works["duration_days"].notna()
-    mapped = works.loc[open_mask, "peer_group_id"].map(group_risk)
-    works.loc[open_mask, "risk_level_used"] = np.where(mapped.notna(), "peer_group", "global")
-    works.loc[open_mask, "risk_score"] = mapped.fillna(global_risk).values
-
+    works["risk_score"] = works["cox_risk"].fillna(0.0).clip(0, 1)
+    works.loc[works["is_completed"], "risk_score"] = 0.0
+    works["risk_level_used"] = np.where(works["cox_risk"].notna(), "cox_model", "unscored")
     LOGGER.info(
-        "completion risk: %s peer-group curves, global=%0.3f, open works scored=%s",
-        len(group_risk),
-        global_risk,
-        f"{int(open_mask.sum()):,}",
+        "completion risk: Cox scores attached to %s works (open, scored)",
+        f"{int((works['risk_score'] > 0).sum()):,}",
     )
     return works
 
@@ -265,6 +221,22 @@ def add_change_points(works: pd.DataFrame) -> pd.DataFrame:
 # ------------------------------------------------------------ Explain & Prioritise
 
 
+def add_anomaly(works: pd.DataFrame) -> pd.DataFrame:
+    """Attach the trained IsolationForest multivariate outlier flag as one signal."""
+    works = works.copy()
+    iso = joblib.load(config.ARTIFACTS / "models" / "isolation_forest.joblib")
+    snap = SNAPSHOT
+    feats = pd.DataFrame({
+        "log_amount": np.log1p(works["recommended_amount"].fillna(0)),
+        "age_days": (snap - works["recommendation_date"]).dt.days.fillna(0).clip(lower=0),
+    })
+    feats = (feats - feats.mean()) / (feats.std() + 1e-9)
+    works["anomaly_flag"] = (iso.predict(feats.values) == -1).astype(float)
+    LOGGER.info("anomaly: %s works flagged by trained IsolationForest",
+                f"{int(works['anomaly_flag'].sum()):,}")
+    return works
+
+
 def _sigmoid(x: pd.Series) -> pd.Series:
     return 1 / (1 + np.exp(-x))
 
@@ -290,6 +262,7 @@ def add_fusion(works: pd.DataFrame) -> pd.DataFrame:
     ).clip(0, 1)
     works["sig_conformance"] = conf * 0.9
     works["sig_change_point"] = works["change_point"].fillna(0.0)
+    works["sig_anomaly"] = works.get("anomaly_flag", pd.Series(0.0, index=works.index)).fillna(0.0)
 
     signal_cols = {
         "peer_amount": "sig_peer_amount",
@@ -297,6 +270,7 @@ def add_fusion(works: pd.DataFrame) -> pd.DataFrame:
         "completion_risk": "sig_completion_risk",
         "conformance": "sig_conformance",
         "change_point": "sig_change_point",
+        "anomaly": "sig_anomaly",
     }
 
     # Noisy-OR fusion with configured weights. Priority in [0,1).
@@ -365,6 +339,10 @@ def _evidence(row: pd.Series) -> list[dict]:
         ev.append({"signal": "Behavioural change", "family": "behaviour",
                    "detail": f"Implementing agency's recommendation pattern shifted year-on-year "
                              f"(magnitude {row['change_point']:.0%}). A change point is a lead, not a finding."})
+    if row.get("sig_anomaly", 0) > 0:
+        ev.append({"signal": "Statistical outlier", "family": "multivariate",
+                   "detail": "A trained anomaly detector (IsolationForest) flags this work's "
+                             "amount-and-age profile as unusual against the national portfolio."})
     return ev
 
 
@@ -454,6 +432,7 @@ def run(artifacts_dir: Path | None = None) -> pd.DataFrame:
     works = add_peer_comparison(works)
     works = add_completion_risk(works)
     works = add_change_points(works)
+    works = add_anomaly(works)
     works = add_fusion(works)
 
     # Worklist: everything with >=2 families (the corroboration rule), ranked by audit-ROI.

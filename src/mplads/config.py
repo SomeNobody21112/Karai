@@ -100,6 +100,7 @@ SIGNAL_WEIGHTS: dict[str, float] = {
     "completion_risk": 0.60,  # family: duration
     "conformance": 0.75,      # family: lifecycle
     "change_point": 0.50,     # family: behaviour
+    "anomaly": 0.40,          # family: multivariate
 }
 
 #: Which family each signal belongs to. Confidence counts distinct families, not signals,
@@ -110,6 +111,7 @@ SIGNAL_FAMILY: dict[str, str] = {
     "completion_risk": "duration",
     "conformance": "lifecycle",
     "change_point": "behaviour",
+    "anomaly": "multivariate",
 }
 
 

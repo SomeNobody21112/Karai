@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import Overview from "./pages/Overview.jsx";
 import Worklist from "./pages/Worklist.jsx";
 import CaseFile from "./pages/CaseFile.jsx";
+import HowItWorks from "./pages/HowItWorks.jsx";
 
 function Sidebar() {
   const link = ({ isActive }) => "nav-link" + (isActive ? " active" : "");
@@ -19,6 +20,9 @@ function Sidebar() {
       </NavLink>
       <NavLink to="/worklist" className={link}>
         <span className="ic">☰</span> Audit Worklist
+      </NavLink>
+      <NavLink to="/how" className={link}>
+        <span className="ic">💡</span> How it works
       </NavLink>
       <div className="sidebar-foot">
         Learn → Compare → Predict → Explain → Prioritise
@@ -38,6 +42,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/worklist" element={<Worklist />} />
+          <Route path="/how" element={<HowItWorks />} />
           <Route path="/case/:ref" element={<CaseFile />} />
         </Routes>
       </div>
