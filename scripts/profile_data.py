@@ -20,6 +20,34 @@ SAMPLE_VALUES = 5
 DATE_HINTS = ("DATE",)
 NUM_HINTS = ("AMOUNT", "Total_Amt", "RATING", "_id", "_ID", "Sno")
 
+#: Every raw column is read as `str` so that nothing is silently coerced on the way in.
+#: The dtype reported here is therefore the *inferred* dtype — the narrowest type every
+#: non-null value in the column actually satisfies. It is what ingestion should cast to,
+#: not what pandas happened to guess.
+DTYPE_ORDER = ("bool", "int", "float", "date", "str")
+
+
+def infer_dtype(values: pd.Series) -> str:
+    """Narrowest type that every non-null value in `values` satisfies."""
+    non_null = values.dropna()
+    if non_null.empty:
+        return "empty"
+
+    lowered = set(non_null.str.lower().unique()[:50])
+    if lowered <= {"true", "false", "0", "1", "yes", "no"} and len(lowered) <= 2:
+        return "bool"
+
+    numeric = pd.to_numeric(non_null, errors="coerce")
+    if numeric.notna().all():
+        return "int" if (numeric % 1 == 0).all() else "float"
+
+    for fmt in ("%d-%b-%Y", "%Y-%m-%d"):
+        parsed = pd.to_datetime(non_null, format=fmt, errors="coerce")
+        if parsed.notna().all():
+            return "date"
+
+    return "str"
+
 
 def profile_file(path: Path, sep: str = ",") -> dict:
     """Stream a CSV and accumulate per-column statistics."""
@@ -59,8 +87,10 @@ def profile_file(path: Path, sep: str = ",") -> dict:
 
     stats = []
     for col in columns:
+        distinct = pd.Series(sorted(uniques[col])[:200_000], dtype="object")
         entry = {
             "column": col,
+            "dtype": infer_dtype(distinct),
             "nulls": nulls[col],
             "null_pct": 100.0 * nulls[col] / n_rows if n_rows else 0.0,
             "n_unique": (">200000" if unique_capped[col] else len(uniques[col])),
@@ -89,7 +119,8 @@ def render(report: dict) -> str:
         f"FILE   {report['path'].name}",
         f"SHAPE  {report['rows']:,} rows x {report['cols']} columns",
         "=" * 100,
-        f"{'column':<32} {'null%':>8} {'n_unique':>12}  {'min':<12} {'max':<12} samples",
+        f"{'column':<32} {'dtype':<6} {'null%':>8} {'n_unique':>12}  "
+        f"{'min':<12} {'max':<12} samples",
         "-" * 100,
     ]
     for s in report["stats"]:
@@ -99,7 +130,8 @@ def render(report: dict) -> str:
         hi = "" if s["max"] is None else str(s["max"])[:12]
         sample = " | ".join(str(v)[:28] for v in s["samples"])[:150]
         lines.append(
-            f"{s['column']:<32} {s['null_pct']:>7.3f}% {n_unique:>12}  {lo:<12} {hi:<12} {sample}"
+            f"{s['column']:<32} {s['dtype']:<6} {s['null_pct']:>7.3f}% {n_unique:>12}  "
+            f"{lo:<12} {hi:<12} {sample}"
         )
     lines.append("")
     return "\n".join(lines)

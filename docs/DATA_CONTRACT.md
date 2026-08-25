@@ -4,7 +4,7 @@
 **Every number in this document was produced by `scripts/profile_data.py` and the Phase 0
 analysis run against the actual files.** Nothing here is copied from the pitch deck, the
 FRD, or the previous team's `Dataset/README.md`. Where our measurements disagree with
-those documents, the disagreement is recorded explicitly in §9.
+those documents, the disagreement is recorded explicitly in §11.
 
 Regenerate the underlying profile with:
 
@@ -32,12 +32,12 @@ All three are comma-delimited, UTF-8, one row per **work-stage** — not per wor
 - `Dataset/raw/vonter_mplads_recommendations_raw.csv` (60,359 × 15, semicolon-delimited).
   Recommendation stage only — no sanction or completion rows — so it cannot support the
   lifecycle join. **However**, it is the only source in the package carrying
-  `VILLAGE` (29,881 distinct), `BLOCK` (5,965), `CITY` and `WARD`. See §10.
+  `VILLAGE` (29,881 distinct), `BLOCK` (5,965), `CITY` and `WARD`. See §12.
 - `Dataset/raw/original_archives/` — the as-downloaded `.tar.gz` files plus three
   `._works_*.csv` macOS AppleDouble stubs (163–319 bytes, no data).
 - Everything under `Dataset/processed/`, `Dataset/features/`, `Dataset/models/`,
   `Dataset/outputs/` — a previous pipeline's derived output. **Reference and
-  cross-check only. Never an input.** See §9.
+  cross-check only. Never an input.** See §11.
 
 ## 2. Grain and the join key
 
@@ -126,134 +126,154 @@ in our ingestion. This check costs nothing and is worth more than the rows thems
 They are **excluded from the work table** (they have no work grain) and **retained in a
 separate `mp_totals` table**. `Total_Amt` never enters a work-level feature.
 
-## 4. Column dictionary
+## 4. Column dictionary — one table per file
 
-`n_unique` and `null %` are measured across all 480,768 combined rows.
+Every column of every raw file. `dtype` is the **inferred** dtype: the narrowest type
+every non-null value actually satisfies, which is what ingestion should cast to — not
+what pandas happens to guess. Files are read as `str` so nothing is coerced on the way
+in. `null %` and `n_unique` are measured **per file**, so they differ from the pooled
+figures quoted elsewhere in this document.
+
 **Trustworthy** = safe to use in a calculation after the stated transformation.
 
-### 4.1 Scraper context columns (added by the harvester, not the portal)
+### 4.1 `esakshi_stagewise_works_ls17_raw.csv` - 17th Lok Sabha
 
-These are 0% null even on the summary rows, because they come from the request, not the payload.
+242,358 rows x 31 columns.
 
-| Column | dtype | n_unique | null % | Meaning | Trustworthy |
+| Column | dtype | null % | n_unique | Meaning | Trustworthy |
 |---|---|---:|---:|---|---|
-| `tenure_label` | str | 3 | 0.000% | `17th Lok Sabha` / `18th Lok Sabha` / `Rajya Sabha` | yes |
-| `tenure_id` | int | 2 | 12.271% | Internal tenure id (5 = LS17, 7 = LS18). Absent from the RS file | yes |
-| `house` | str | 2 | 0.000% | `Lok Sabha` / `Rajya Sabha` | yes |
-| `state_id` | int | 36 | 0.000% | Portal state id. Range 1–130, **not contiguous** | yes |
-| `state_name` | str | 36 | 0.000% | State/UT name. **Identical to `STATE_NAME` on 100% of the 476,781 work rows** | yes — prefer this over `STATE_NAME` |
-| `constituency_id` | int | 543 | 12.271% | Constituency id. Absent from the RS file (all 58,995 RS rows) | yes, LS only |
-| `constituency_name` | str | 543 | 12.271% | Constituency name. **Identical to `CONSTITUENCY` on 100% of rows where both are present.** Absent from the RS file | yes, LS only |
-| `mp_id` | int | 1,127 | 0.000% | **MP identifier — half of the join key.** 1,076 distinct on recommendation rows | yes |
-| `mp_name` | str | 1,253 | 0.000% | MP name, clean. Prefer over `MP_NAME` (§4.3) | yes |
-| `mp_tenure` | str | 13 | 87.730% | RS file only — e.g. `2020-26`. Rajya Sabha term | yes, RS only |
-| `tile_label` | str | 3 | 0.000% | **The stage.** `Works Recommended` / `Works Sanctioned` / `Works Completed` | yes |
+| `tenure_label` | str | 0.000% | 1 | House and tenure this export was pulled for | yes |
+| `tenure_id` | int | 0.000% | 1 | Internal tenure id (5 = LS17, 7 = LS18). Absent from the RS file | yes |
+| `house` | str | 0.000% | 1 | `Lok Sabha` / `Rajya Sabha` | yes |
+| `state_id` | int | 0.000% | 36 | Portal state id. Range 1-130, not contiguous | yes |
+| `state_name` | str | 0.000% | 36 | State/UT. Identical to `STATE_NAME` on 100% of work rows; prefer this one | yes |
+| `constituency_id` | int | 0.000% | 541 | Constituency id. Absent from the RS file | yes |
+| `constituency_name` | str | 0.000% | 541 | Constituency. Identical to `CONSTITUENCY` where both present. Absent from RS | yes |
+| `mp_id` | int | 0.000% | 557 | **MP id - half of the join key** | yes |
+| `mp_name` | str | 0.000% | 554 | MP name, clean. Prefer over `MP_NAME` | yes |
+| `tile_label` | str | 0.000% | 3 | **The lifecycle stage.** Recommended / Sanctioned / Completed | yes |
+| `ACTIVITY_NAME` | str | 0.689% | 91,488 | **Composite, not a name:** `WS/MP<code>/<FY>/<serial>-<official category>`. See §5 | yes, **after parsing** |
+| `ACTUAL_AMOUNT` | int | 77.541% | 22,048 | **NOT expenditure** - a completion confirmation echoing the recommended amount. See §6 | **no, for any money question** |
+| `ACTUAL_END_DATE` | date | 77.541% | 1,157 | Completion date. **0 unparseable**. 9 values fall after the anchor (to 2044) | yes, after the out-of-window filter |
+| `ATTACH_ID` | int | 44.772% | 47,953 | Attachment id. Proves a document exists; **the file itself is login-gated and absent** | only as a boolean `has_attachment` |
+| `AVERAGE_RATING` | int | 77.541% | 2 | Only three values exist nationally (0, 1, 5) and the scale differs by file | **no** |
+| `CONSTITUENCY` | str | 0.689% | 536 | Constituency. **All RS rows read `Sitting`/`Nominated Rajya Sabha`** - real, but not a place | yes, with the RS caveat |
+| `CONSTITUENCY_ID` | int | 0.689% | 536 | Constituency id (545/546 are the two RS pseudo-constituencies) | yes |
+| `FILE_STATUS` | bool | 44.772% | 1 | Literally one value, `True`, wherever populated. Zero bits | **no** |
+| `FLAG` | int | 0.689% | 3 | Stage code: 1 = live, 3 = completed, 2 = 957 recommendations that never progress. See §7 | yes for 1/3; **UNVERIFIED** for 2 |
+| `IDA_NAME` | str | 0.689% | 734 | **Implementing District Authority**, format `District(ROLE_IDA)`. 778 distinct, 775 after stripping the role | yes, normalise the bracket first |
+| `LETTER_NO` | str | 0.689% | 37,959 | Recommendation letter ref `LN/MP<code>/<FY>/<n>`. A natural batch grouping | yes |
+| `MP_NAME` | str | 0.689% | 538 | MP name **with a tenure suffix on some RS members**. Agrees with `mp_name` on only 87.76% of rows | **no - use `mp_name`/`mp_id`** |
+| `RECOMMENDATION_DATE` | date | 23.148% | 640 | Date the MP recommended the work. Format `%d-%b-%Y`, **0 unparseable**. On `Works Sanctioned` rows this is a **verbatim copy**, not a sanction date | yes on Recommended rows; **no** on Sanctioned rows |
+| `RECOMMENDED_AMOUNT` | float | 23.148% | 24,922 | **Rupees, the amount the MP recommended.** The only usable money column. Median Rs 315,000 | yes |
+| `STATE_NAME` | str | 0.689% | 35 | State/UT. Duplicate of `state_name` | yes (prefer `state_name`) |
+| `Sno` | int | 0.689% | 1,478 | Row serial within the portal page; resets per MP | **no - presentation artifact** |
+| `Total_Amt` | float | 99.311% | 1,305 | **Per-MP, per-stage portfolio total.** Non-null *only* on the 3,987 MP summary rows | yes at MP grain; **no** at work grain |
+| `WORK_CATEGORY` | str | 0.748% | 4 | Four coarse values. Too broad to form a peer group alone | yes, low information |
+| `WORK_DESCRIPTION` | str | 0.928% | 83,190 | Free-text description written by the MP's office. Mean 92 chars, max 500. Mixed English/Hindi/Gujarati | yes, as text |
+| `WORK_ID` | int | 77.541% | 54,431 | Portal work id, issued **only at completion** | **no - never join on this** |
+| `WORK_RECOMMENDATION_DTL_ID` | int | 0.689% | 94,897 | **Per-MP work serial - other half of the join key.** Not unique alone | yes, only as part of the composite key |
 
-### 4.2 Work identity and description
+### 4.2 `esakshi_stagewise_works_ls18_raw.csv` - 18th Lok Sabha
 
-| Column | dtype | n_unique | null % | Meaning | Trustworthy |
+179,415 rows x 31 columns.
+
+| Column | dtype | null % | n_unique | Meaning | Trustworthy |
 |---|---|---:|---:|---|---|
-| `WORK_RECOMMENDATION_DTL_ID` | int | 210,266 | 0.829% | **Per-MP work serial — the other half of the join key.** Not unique on its own | yes, only as part of the composite key |
-| `WORK_ID` | int | 85,773 | 82.151% | Portal work id, **issued only at completion**. 100% null on Recommended and Sanctioned rows | **no — never join on this** |
-| `WORK_DESCRIPTION` | str | 187,872 | 1.009% | Free-text description written by the MP's office. Mean 92 chars, median 84, max 500. 187,869 distinct across 209,964 non-null works; 75 descriptions are reused by ≥50 works each (8,597 works). Mixed English/Hindi/Gujarati, inconsistent transliteration | yes, as text — see §6 |
-| `ACTIVITY_NAME` | str | 180,707 | 0.829% | **Composite, not a name.** Format `WS/MP<code>/<FY>/<serial>-<official category>`. See §5 — this is the most useful undocumented field in the dataset | yes, **after parsing** |
-| `WORK_CATEGORY` | str | 4 | 0.863% | `Normal/Others`, `Repair and Renovation`, `Trust and Society`, `Bar and Associations`. Too coarse to form a peer group on its own | yes, but low information |
-| `LETTER_NO` | str | 91,391 | 0.829% | Recommendation letter reference, `LN/MP<code>/<FY>/<n>`. Groups works recommended in one letter | yes — a natural batch grouping |
-| `Sno` | int | 1,478 | 0.829% | Row serial **within the portal page**, resets per MP. Presentation artifact | **no — do not use** |
+| `tenure_label` | str | 0.000% | 1 | House and tenure this export was pulled for | yes |
+| `tenure_id` | int | 0.000% | 1 | Internal tenure id (5 = LS17, 7 = LS18). Absent from the RS file | yes |
+| `house` | str | 0.000% | 1 | `Lok Sabha` / `Rajya Sabha` | yes |
+| `state_id` | int | 0.000% | 36 | Portal state id. Range 1-130, not contiguous | yes |
+| `state_name` | str | 0.000% | 36 | State/UT. Identical to `STATE_NAME` on 100% of work rows; prefer this one | yes |
+| `constituency_id` | int | 0.000% | 542 | Constituency id. Absent from the RS file | yes |
+| `constituency_name` | str | 0.000% | 542 | Constituency. Identical to `CONSTITUENCY` where both present. Absent from RS | yes |
+| `mp_id` | int | 0.000% | 553 | **MP id - half of the join key** | yes |
+| `mp_name` | str | 0.000% | 552 | MP name, clean. Prefer over `MP_NAME` | yes |
+| `tile_label` | str | 0.000% | 3 | **The lifecycle stage.** Recommended / Sanctioned / Completed | yes |
+| `ACTIVITY_NAME` | str | 0.925% | 67,437 | **Composite, not a name:** `WS/MP<code>/<FY>/<serial>-<official category>`. See §5 | yes, **after parsing** |
+| `ACTUAL_AMOUNT` | int | 87.853% | 7,798 | **NOT expenditure** - a completion confirmation echoing the recommended amount. See §6 | **no, for any money question** |
+| `ACTUAL_END_DATE` | date | 87.853% | 517 | Completion date. **0 unparseable**. 9 values fall after the anchor (to 2044) | yes, after the out-of-window filter |
+| `ATTACH_ID` | int | 69.348% | 20,149 | Attachment id. Proves a document exists; **the file itself is login-gated and absent** | only as a boolean `has_attachment` |
+| `AVERAGE_RATING` | int | 87.853% | 2 | Only three values exist nationally (0, 1, 5) and the scale differs by file | **no** |
+| `CONSTITUENCY` | str | 0.925% | 538 | Constituency. **All RS rows read `Sitting`/`Nominated Rajya Sabha`** - real, but not a place | yes, with the RS caveat |
+| `CONSTITUENCY_ID` | int | 0.925% | 538 | Constituency id (545/546 are the two RS pseudo-constituencies) | yes |
+| `FILE_STATUS` | bool | 69.348% | 1 | Literally one value, `True`, wherever populated. Zero bits | **no** |
+| `FLAG` | int | 0.925% | 3 | Stage code: 1 = live, 3 = completed, 2 = 957 recommendations that never progress. See §7 | yes for 1/3; **UNVERIFIED** for 2 |
+| `IDA_NAME` | str | 0.925% | 758 | **Implementing District Authority**, format `District(ROLE_IDA)`. 778 distinct, 775 after stripping the role | yes, normalise the bracket first |
+| `LETTER_NO` | str | 0.925% | 39,136 | Recommendation letter ref `LN/MP<code>/<FY>/<n>`. A natural batch grouping | yes |
+| `MP_NAME` | str | 0.925% | 538 | MP name **with a tenure suffix on some RS members**. Agrees with `mp_name` on only 87.76% of rows | **no - use `mp_name`/`mp_id`** |
+| `RECOMMENDATION_DATE` | date | 13.071% | 672 | Date the MP recommended the work. Format `%d-%b-%Y`, **0 unparseable**. On `Works Sanctioned` rows this is a **verbatim copy**, not a sanction date | yes on Recommended rows; **no** on Sanctioned rows |
+| `RECOMMENDED_AMOUNT` | float | 13.071% | 12,413 | **Rupees, the amount the MP recommended.** The only usable money column. Median Rs 315,000 | yes |
+| `STATE_NAME` | str | 0.925% | 36 | State/UT. Duplicate of `state_name` | yes (prefer `state_name`) |
+| `Sno` | int | 0.925% | 1,455 | Row serial within the portal page; resets per MP | **no - presentation artifact** |
+| `Total_Amt` | float | 99.075% | 1,455 | **Per-MP, per-stage portfolio total.** Non-null *only* on the 3,987 MP summary rows | yes at MP grain; **no** at work grain |
+| `WORK_CATEGORY` | str | 0.925% | 4 | Four coarse values. Too broad to form a peer group alone | yes, low information |
+| `WORK_DESCRIPTION` | str | 1.064% | 81,049 | Free-text description written by the MP's office. Mean 92 chars, max 500. Mixed English/Hindi/Gujarati | yes, as text |
+| `WORK_ID` | int | 87.853% | 21,756 | Portal work id, issued **only at completion** | **no - never join on this** |
+| `WORK_RECOMMENDATION_DTL_ID` | int | 0.925% | 88,855 | **Per-MP work serial - other half of the join key.** Not unique alone | yes, only as part of the composite key |
 
-### 4.3 Portal-payload location and entity columns
+### 4.3 `esakshi_stagewise_works_rs_raw.csv` - Rajya Sabha
 
-| Column | dtype | n_unique | null % | Meaning | Trustworthy |
+58,995 rows x 29 columns.
+
+| Column | dtype | null % | n_unique | Meaning | Trustworthy |
 |---|---|---:|---:|---|---|
-| `STATE_NAME` | str | 36 | 0.829% | State/UT. Duplicate of `state_name` | yes (prefer `state_name`) |
-| `CONSTITUENCY` | str | 545 | 0.829% | Constituency. For **all 58,995 RS rows this is `Sitting Rajya Sabha` or `Nominated Rajya Sabha`** — a real value, but not a place | yes, with the RS caveat |
-| `CONSTITUENCY_ID` | int | 545 | 0.829% | Constituency id (545/546 for the two RS pseudo-constituencies) | yes |
-| `IDA_NAME` | str | 778 | 0.829% | **Implementing District Authority** — format `District(ROLE_IDA)`, e.g. `Anakapalli(DISTRICT COLLECTOR ANAKAPALLI_IDA)`. 778 distinct; 775 after stripping the bracketed role, so 3 districts appear under two role strings | yes — normalise the bracket before using as an entity key |
-| `MP_NAME` | str | 1,204 | 0.829% | MP name **with a tenure suffix appended for some RS members**, e.g. `Shri Parimal Nathwani (2020-…)`. Agrees with `mp_name` on only 87.76% of rows | **no — use `mp_name` / `mp_id`** |
+| `tenure_label` | str | 0.000% | 1 | House and tenure this export was pulled for | yes |
+| `house` | str | 0.000% | 1 | `Lok Sabha` / `Rajya Sabha` | yes |
+| `state_id` | int | 0.000% | 32 | Portal state id. Range 1-130, not contiguous | yes |
+| `state_name` | str | 0.000% | 32 | State/UT. Identical to `STATE_NAME` on 100% of work rows; prefer this one | yes |
+| `mp_id` | int | 0.000% | 219 | **MP id - half of the join key** | yes |
+| `mp_name` | str | 0.000% | 219 | MP name, clean. Prefer over `MP_NAME` | yes |
+| `mp_tenure` | str | 0.005% | 13 | RS only. Rajya Sabha term, e.g. `2020-26` | yes |
+| `tile_label` | str | 0.000% | 3 | **The lifecycle stage.** Recommended / Sanctioned / Completed | yes |
+| `ACTIVITY_NAME` | str | 1.114% | 21,957 | **Composite, not a name:** `WS/MP<code>/<FY>/<serial>-<official category>`. See §5 | yes, **after parsing** |
+| `ACTUAL_AMOUNT` | int | 83.751% | 3,735 | **NOT expenditure** - a completion confirmation echoing the recommended amount. See §6 | **no, for any money question** |
+| `ACTUAL_END_DATE` | date | 83.751% | 741 | Completion date. **0 unparseable**. 9 values fall after the anchor (to 2044) | yes, after the out-of-window filter |
+| `ATTACH_ID` | int | 64.572% | 7,467 | Attachment id. Proves a document exists; **the file itself is login-gated and absent** | only as a boolean `has_attachment` |
+| `AVERAGE_RATING` | int | 83.751% | 1 | Only three values exist nationally (0, 1, 5) and the scale differs by file | **no** |
+| `CONSTITUENCY` | str | 1.114% | 2 | Constituency. **All RS rows read `Sitting`/`Nominated Rajya Sabha`** - real, but not a place | yes, with the RS caveat |
+| `CONSTITUENCY_ID` | int | 1.114% | 2 | Constituency id (545/546 are the two RS pseudo-constituencies) | yes |
+| `FILE_STATUS` | bool | 64.572% | 1 | Literally one value, `True`, wherever populated. Zero bits | **no** |
+| `FLAG` | int | 1.114% | 3 | Stage code: 1 = live, 3 = completed, 2 = 957 recommendations that never progress. See §7 | yes for 1/3; **UNVERIFIED** for 2 |
+| `IDA_NAME` | str | 1.114% | 648 | **Implementing District Authority**, format `District(ROLE_IDA)`. 778 distinct, 775 after stripping the role | yes, normalise the bracket first |
+| `LETTER_NO` | str | 1.114% | 14,296 | Recommendation letter ref `LN/MP<code>/<FY>/<n>`. A natural batch grouping | yes |
+| `MP_NAME` | str | 1.114% | 198 | MP name **with a tenure suffix on some RS members**. Agrees with `mp_name` on only 87.76% of rows | **no - use `mp_name`/`mp_id`** |
+| `RECOMMENDATION_DATE` | date | 17.362% | 915 | Date the MP recommended the work. Format `%d-%b-%Y`, **0 unparseable**. On `Works Sanctioned` rows this is a **verbatim copy**, not a sanction date | yes on Recommended rows; **no** on Sanctioned rows |
+| `RECOMMENDED_AMOUNT` | float | 17.362% | 5,251 | **Rupees, the amount the MP recommended.** The only usable money column. Median Rs 315,000 | yes |
+| `STATE_NAME` | str | 1.114% | 32 | State/UT. Duplicate of `state_name` | yes (prefer `state_name`) |
+| `Sno` | int | 1.114% | 676 | Row serial within the portal page; resets per MP | **no - presentation artifact** |
+| `Total_Amt` | float | 98.886% | 544 | **Per-MP, per-stage portfolio total.** Non-null *only* on the 3,987 MP summary rows | yes at MP grain; **no** at work grain |
+| `WORK_CATEGORY` | str | 1.144% | 4 | Four coarse values. Too broad to form a peer group alone | yes, low information |
+| `WORK_DESCRIPTION` | str | 1.175% | 23,922 | Free-text description written by the MP's office. Mean 92 chars, max 500. Mixed English/Hindi/Gujarati | yes, as text |
+| `WORK_ID` | int | 83.751% | 9,586 | Portal work id, issued **only at completion** | **no - never join on this** |
+| `WORK_RECOMMENDATION_DTL_ID` | int | 1.114% | 27,044 | **Per-MP work serial - other half of the join key.** Not unique alone | yes, only as part of the composite key |
 
-**There is no district column.** `IDA_NAME` is a district *administration office*, and
-`CONSTITUENCY` is a constituency. Any claim phrased "by district" would be invented.
+### 4.4 `vonter_mplads_recommendations_raw.csv` - NOT read by the pipeline
 
-### 4.4 Dates
+60,359 rows x 15 columns.
 
-| Column | dtype | n_unique | null % | Meaning | Trustworthy |
+| Column | dtype | null % | n_unique | Meaning | Trustworthy |
 |---|---|---:|---:|---|---|
-| `RECOMMENDATION_DATE` | date | 1,311 | 18.678% | Date the MP recommended the work. Format `%d-%b-%Y` (`14-Nov-2023`). **0 unparseable values out of 390,971 present.** Range **2019-05-23 → 2026-05-26** | yes |
-| `ACTUAL_END_DATE` | date | 1,176 | 82.151% | Completion date. Same format, **0 unparseable out of 85,810 present**. Range 2022-06-20 → **2044-10-20** (9 out-of-window values, §7) | yes, after the out-of-window filter |
-
-**There is no sanction date. Anywhere.**
-
-`Works Sanctioned` rows carry a populated `RECOMMENDATION_DATE`, which is tempting and
-wrong. We verified it: across 179,676 works present in both stages, the sanction row's
-`RECOMMENDATION_DATE` is **identical to the recommendation row's date on 100.00%** of
-them. It is a copy of the recommendation date, not a sanction event date. Sanction
-**presence** is testable; sanction **timing** is unknowable. No feature, chart, or claim
-may imply otherwise.
-
-### 4.5 Money
-
-| Column | dtype | n_unique | null % | Meaning | Trustworthy |
-|---|---|---:|---:|---|---|
-| `RECOMMENDED_AMOUNT` | float | 38,722 | 18.678% | **₹, the amount the MP recommended.** The only usable money column. Median ₹315,000, p75 ₹570,500, p95 ₹1.5M, max ₹75,742,166. 6 works have a value of exactly 0 | yes |
-| `ACTUAL_AMOUNT` | float | 31,659 | 82.151% | **NOT expenditure — see §4.6.** Present only on completion rows | **no, for any money question** |
-| `Total_Amt` | float | 3,293 | 99.171% | **Per-MP, per-stage portfolio total.** Non-null *only* on the 3,987 MP summary rows (§3), null on every work row | yes, at MP grain only — never at work grain |
-
-### 4.6 `ACTUAL_AMOUNT` is not expenditure — measured
-
-This is FRD hard constraint #4, and here is the evidence rather than the assertion.
-
-Of 85,525 completed works carrying both amounts:
-
-| | Count | Share |
-|---|---:|---:|
-| `ACTUAL_AMOUNT` **exactly equal** to `RECOMMENDED_AMOUNT` | 84,112 | **98.35%** |
-| Differing at all | 1,413 | 1.65% |
-| Differing by more than ±0.01% | **1** | 0.001% |
-| Ratio above 1.05 (any overrun) | **0** | 0% |
-
-The 1,413 differing works span a ratio of **0.999992 → 1.000011** — parts per million,
-i.e. floating-point representation noise. Exactly **one** work in the entire national
-portfolio has a materially different value (ratio 0.6798).
-
-`ACTUAL_AMOUNT` is a **completion confirmation that echoes the recommended amount**, not
-an independent record of money spent. Therefore:
-
-- No cost-overrun signal is computable. Do not build one.
-- No underspend signal is computable. Do not build one.
-- `₹ exposure` must be derived from `RECOMMENDED_AMOUNT` × risk, and must be labelled
-  **exposure at risk**, never loss, missing money, or spend.
-
-### 4.7 Columns that carry no usable information
-
-| Column | dtype | n_unique | null % | Why it is useless |
-|---|---|---:|---:|---|
-| `AVERAGE_RATING` | float | 3 | 82.151% | Only three values exist nationally: 0.0, 1.0, 5.0. LS17 holds {0, 5}, LS18 {0, 1}, RS {0}. The scale is inconsistent between files and is 0 for almost every work. Not a quality measure |
-| `FILE_STATUS` | str | 1 | 56.373% | Literally one value, `True`, wherever it is populated. Carries zero bits |
-| `ATTACH_ID` | int | 75,569 | 56.373% | Attachment id. **Proves a document exists; the file itself is login-gated and not in this package.** 32.70% null on completed rows, so ~67% of completed works have an attachment. Usable only as a boolean "has attachment", not as content |
-| `Sno` | int | 1,478 | 0.829% | Page row number, resets per MP |
-
-### 4.8 `FLAG` — an undocumented stage code
-
-| `FLAG` | Recommended | Sanctioned | Completed |
-|---|---:|---:|---:|
-| `1` | 209,497 | 180,517 | 0 |
-| `2` | **957** | 0 | 0 |
-| `3` | 0 | 0 | 85,810 |
-
-`FLAG` is redundant with `tile_label` (1 = live, 3 = completed) **except for 957
-recommendation rows carrying `FLAG=2`**. Of those 957, only **1** ever reaches a sanction
-row and only **1** ever reaches completion. So `FLAG=2` marks a recommendation that
-essentially never progresses — plausibly *returned*, *rejected*, or *withdrawn*.
-
-**Marked UNVERIFIED.** The portal does not publish a legend. See §11 Q1. Until confirmed,
-we carry `flag` through to the work table and exclude `FLAG=2` works from the
-completion-risk fit (they are not censored — they appear to be terminated), but we make no
-public claim about what the code means.
+| `MP NAME` | str | 0.000% | 633 | MP name. No id column, so joining to eSAKSHI requires fuzzy name matching | unknown |
+| `WORK` | str | 0.000% | 20,735 | Work description, prefixed `NA - ` | unknown |
+| `CATEGORY` | str | 0.000% | 4 | Same four coarse values as `WORK_CATEGORY` | yes |
+| `STATE` | str | 0.000% | 33 | State/UT (33 present vs 36 in eSAKSHI) | yes |
+| `CONSTITUENCY` | str | 0.008% | 456 | Constituency. **All RS rows read `Sitting`/`Nominated Rajya Sabha`** - real, but not a place | yes, with the RS caveat |
+| `IDA` | str | 0.000% | 699 | Implementing authority, different string format from `IDA_NAME` | unknown |
+| `CITY` | str | 77.718% | 2,140 | **Sub-district location - absent from eSAKSHI entirely** | unknown |
+| `WARD` | str | 77.960% | 4,669 | **Ward - absent from eSAKSHI entirely** | unknown |
+| `BLOCK` | str | 23.475% | 5,965 | **Block - absent from eSAKSHI entirely** | unknown |
+| `VILLAGE` | str | 23.468% | 29,881 | **Village - absent from eSAKSHI entirely**, 29,881 distinct | unknown |
+| `RECOMMENDED DATE` | date | 0.000% | 280 | Recommendation date, ISO format. Spans only 2023-04-26 to 2024-03-04 | yes |
+| `ALLOCATION AMOUNT` | int | 0.000% | 3,391 | Recommended/allocated amount in rupees | unknown - relationship to `RECOMMENDED_AMOUNT` untested |
+| `IDA APPROVAL` | str | 0.000% | 3 | `Action Pending` / `Approved by IDA` / **`Rejected by IDA`** - an explicit rejection state eSAKSHI lacks. Possible lead on Q1 | unknown |
+| `STATUS` | str | 1.344% | 4 | `Unsanctioned` / `Ongoing` / `Sanctioned` / `Completed` - explicit lifecycle status eSAKSHI lacks | unknown |
+| `HOUSE` | str | 0.000% | 2 | `Lok Sabha` / `Rajya Sabha` | yes |
 
 ## 5. `ACTIVITY_NAME` contains the official MPLADS works taxonomy — and it was missed
 
 `ACTIVITY_NAME` has 180,707 distinct values, which is why both the pitch deck and the
-previous team's `Dataset/README.md` §12 conclude it "cannot form a peer group" and that
+previous team's `Dataset/README.md` §14 conclude it "cannot form a peer group" and that
 work types must therefore be learned by clustering.
 
 **That conclusion does not survive parsing the field.** The format is:
@@ -303,7 +323,50 @@ The suffixes are the official MPLADS permissible-works list:
 The 7.03% of rows that do not match the pattern must be counted and reported, not
 discarded.
 
-## 6. Description quality
+## 6. `ACTUAL_AMOUNT` is not expenditure — measured
+
+This is FRD hard constraint #4, and here is the evidence rather than the assertion.
+
+Of 85,525 completed works carrying both amounts:
+
+| | Count | Share |
+|---|---:|---:|
+| `ACTUAL_AMOUNT` **exactly equal** to `RECOMMENDED_AMOUNT` | 84,112 | **98.35%** |
+| Differing at all | 1,413 | 1.65% |
+| Differing by more than ±0.01% | **1** | 0.001% |
+| Ratio above 1.05 (any overrun) | **0** | 0% |
+
+The 1,413 differing works span a ratio of **0.999992 → 1.000011** — parts per million,
+i.e. floating-point representation noise. Exactly **one** work in the entire national
+portfolio has a materially different value (ratio 0.6798).
+
+`ACTUAL_AMOUNT` is a **completion confirmation that echoes the recommended amount**, not
+an independent record of money spent. Therefore:
+
+- No cost-overrun signal is computable. Do not build one.
+- No underspend signal is computable. Do not build one.
+- `₹ exposure` must be derived from `RECOMMENDED_AMOUNT` × risk, and must be labelled
+  **exposure at risk**, never loss, missing money, or spend.
+
+## 7. `FLAG` — an undocumented stage code
+
+| `FLAG` | Recommended | Sanctioned | Completed |
+|---|---:|---:|---:|
+| `1` | 209,497 | 180,517 | 0 |
+| `2` | **957** | 0 | 0 |
+| `3` | 0 | 0 | 85,810 |
+
+`FLAG` is redundant with `tile_label` (1 = live, 3 = completed) **except for 957
+recommendation rows carrying `FLAG=2`**. Of those 957, only **1** ever reaches a sanction
+row and only **1** ever reaches completion. So `FLAG=2` marks a recommendation that
+essentially never progresses — plausibly *returned*, *rejected*, or *withdrawn*.
+
+**Marked UNVERIFIED.** The portal does not publish a legend. See §13 Q1. Until confirmed,
+we carry `flag` through to the work table and exclude `FLAG=2` works from the
+completion-risk fit (they are not censored — they appear to be terminated), but we make no
+public claim about what the code means.
+
+## 8. Description quality
 
 - 1,029 works (0.488%) have **no** description — these are exactly the works the previous
   team could not assign to an archetype.
@@ -320,7 +383,7 @@ discarded.
 A specificity filter (length, boilerplate detection, duplicate-description collapse) is
 required before embedding.
 
-## 7. Data-quality issues — measured, with counts
+## 9. Data-quality issues — measured, with counts
 
 | # | Issue | Count | Handling |
 |---|---|---:|---|
@@ -330,13 +393,13 @@ required before embedding.
 | 4 | **Out-of-window** completion dates (after the 2026-05-26 anchor) | **9** | Dates: 2026-06-02, 2026-09-15, 2027-06-28, 2028-11-09, 2034-01-01, 2034-02-24, 2034-07-29, 2044-05-28, 2044-10-20. Flag and exclude from duration maths. **These are why the censoring anchor must be `max(RECOMMENDATION_DATE)`, never `max(all dates)`** — anchoring on 2044 would inflate every open work's duration by ~18 years |
 | 5 | Works with **no recommendation row** (orphans) | **695** | Carry, flag, exclude from recommendation-time features |
 | 6 | Completed with **no sanction record** | **70** | Carry; conformance signal |
-| 7 | `FLAG=2` recommendations that never progress | **957** | Carry; UNVERIFIED meaning (§4.8, Q1) |
-| 8 | Duplicate rows per key within a stage | 156 / 154 / 37 | Deterministic dedup: sort by `RECOMMENDATION_DATE` then key, `keep="first"`. **Must be tie-broken on a stable secondary sort** — see §9.2 |
-| 9 | `ACTUAL_AMOUNT` carries no expenditure variance | 98.35% identical | §4.6 — no overrun/underspend signal exists |
+| 7 | `FLAG=2` recommendations that never progress | **957** | Carry; UNVERIFIED meaning (§7, Q1) |
+| 8 | Duplicate rows per key within a stage | 156 / 154 / 37 | Deterministic dedup: sort by `RECOMMENDATION_DATE` then key, `keep="first"`. **Must be tie-broken on a stable secondary sort** — see §11.2 |
+| 9 | `ACTUAL_AMOUNT` carries no expenditure variance | 98.35% identical | §6 — no overrun/underspend signal exists |
 | 10 | No district field | — | Never claim district-level results |
 | 11 | RS constituency is `Sitting Rajya Sabha` for 58,995 rows | — | Peer/travel grouping must key on **state + constituency**, never constituency alone |
 
-## 8. Derived quantities established in Phase 0
+## 10. Derived quantities established in Phase 0
 
 | Quantity | Value | How |
 |---|---|---|
@@ -353,14 +416,14 @@ required before embedding.
 | Constituencies | 545 | includes the 2 RS pseudo-constituencies |
 | Implementing authorities | 778 | 775 after normalising the bracketed role |
 
-## 9. Where we disagree with the supplied documents
+## 11. Where we disagree with the supplied documents
 
 `Dataset/` ships a previous pipeline's outputs and a detailed `README.md`, but **not its
 source code**. We therefore treat it as an independent oracle to check our numbers
 against, not as a source to copy. Most numbers agree exactly, which is strong mutual
 validation. These do not.
 
-### 9.1 The works count — the FRD flagged this, and both figures are right
+### 11.1 The works count — the FRD flagged this, and both figures are right
 
 | Source | Claim |
 |---|---|
@@ -375,22 +438,22 @@ should be corrected.** Likewise the deck's "85,531 full lifecycles" is the count
 completed works with both dates; 85,525 is the count with both amounts; 85,773 is the
 count with a completion row. Every published figure must state which.
 
-### 9.2 `ACTUAL_AMOUNT` ratio range — their phrasing overstates the spread
+### 11.2 `ACTUAL_AMOUNT` ratio range — their phrasing overstates the spread
 
-`Dataset/README.md` §9.5 says the differing works "span a ratio of 0.6798 → 1.00001".
+`Dataset/README.md` §11.5 says the differing works "span a ratio of 0.6798 → 1.00001".
 Literally true, but it reads as a distribution when it is **one outlier plus rounding
 noise**: 1,413 of the 1,414 differing works fall in 0.999992–1.000011. We state it as
-§4.6 instead. Their conclusion (no usable expenditure signal) is correct and, framed this
+§6 instead. Their conclusion (no usable expenditure signal) is correct and, framed this
 way, stronger.
 
-### 9.3 Their "0.329% of recommendation dates fail to parse" is a mislabel
+### 11.3 Their "0.329% of recommendation dates fail to parse" is a mislabel
 
 **0 of 390,971** present `RECOMMENDATION_DATE` values fail to parse under `%d-%b-%Y`. The
 0.329% is the share of *works* with no recommendation row at all — the 695 orphans of §2.
 Absence, not malformation. The distinction matters: a parse failure is a bug to fix, an
 orphan is a signal to surface.
 
-### 9.4 Our dedup differs from theirs by one work
+### 11.4 Our dedup differs from theirs by one work
 
 We measure 84,112 equal / 1,413 differing; they report 84,111 / 1,414. The gap is a single
 work whose duplicate recommendation rows tie on `RECOMMENDATION_DATE`, so `keep="first"`
@@ -398,12 +461,12 @@ resolves differently under a different input row order. **Our dedup must therefo
 `(RECOMMENDATION_DATE, work_ref, source_file, raw_row_index)`** so the result is
 independent of file concatenation order. Recorded as an ingestion requirement for Phase 1.
 
-### 9.5 Their back-dated count
+### 11.5 Their back-dated count
 
 They report 1,191; we measure **1,193** on the raw data before dropping the 6 non-positive
 amount works. Consistent given the different population.
 
-## 10. Deliberately unused, and why
+## 12. Deliberately unused, and why
 
 | Asset | Why not used in the MVP |
 |---|---|
@@ -412,7 +475,7 @@ amount works. Consistent given the different population.
 | `Dataset/outputs/*` | A previous pipeline's conclusions. We cannot regenerate them (no source code shipped), so publishing them would violate Definition of Done #2 and #7. Used only to sanity-check our own |
 | `Dataset/synthetic/` | 406 synthetic works + ground truth + 40 generated photos. **Not real data.** May inform the Phase 10 synthetic-injection harness; must never mix with the real portfolio |
 
-## 11. UNVERIFIED — questions we need answered
+## 13. UNVERIFIED — questions we need answered
 
 These are the marks that must be removed before the contract is final. Everything else in
 this document is measured.
@@ -422,6 +485,14 @@ progress to sanction or completion. If it means *rejected/returned/withdrawn*, t
 are **terminated, not censored**, and including them in the survival fit as censored
 observations would bias completion risk downward. Currently excluded from the fit and
 carried with no public interpretation. *(Needs: portal documentation, or an MoSPI answer.)*
+
+> **Lead, found while profiling.** The unused Vonter file carries an `IDA APPROVAL` column
+> with values `Action Pending` / `Approved by IDA` / **`Rejected by IDA`**, and a `STATUS`
+> column with `Unsanctioned` / `Ongoing` / `Sanctioned` / `Completed`. eSAKSHI exposes
+> neither. If Vonter rows can be matched to our works — it covers only 2023-04-26 to
+> 2024-03-04 and has no `mp_id`, so matching is fuzzy — the overlap between
+> `Rejected by IDA` and `FLAG = 2` would answer Q1 empirically without waiting on MoSPI.
+> Worth one Phase 1 experiment; not a blocker.
 
 **Q2. Is `RECOMMENDED_AMOUNT` in rupees, and is it the amount recommended or the amount
 sanctioned?** Median ₹315,000 and max ₹75.7M are consistent with rupees under the ₹5 crore
@@ -441,18 +512,18 @@ choice. *(Needs: no action if the count stays at 9; revisit if a refreshed extra
 is an abandoned or partially-rolled-out feature and place it on the DO-NOT-USE list. *(Needs:
 confirmation, or it stays unused — low stakes either way.)*
 
-## 12. DO NOT USE list
+## 14. DO NOT USE list
 
 Enforced by `tests/test_data_contract.py`. Using any of these in a calculation is a bug.
 
 | Column | Reason |
 |---|---|
-| `ACTUAL_AMOUNT` | Not expenditure (§4.6). No money question may read it |
+| `ACTUAL_AMOUNT` | Not expenditure (§6). No money question may read it |
 | `WORK_ID` | 82% null; never a join key (§2) |
-| `AVERAGE_RATING` | Three values nationally, inconsistent between files (§4.7) |
-| `FILE_STATUS` | Single-valued (§4.7) |
-| `Sno` | Page row number (§4.7) |
-| `MP_NAME` | Tenure suffix contamination; use `mp_name` / `mp_id` (§4.3) |
+| `AVERAGE_RATING` | Three values nationally, inconsistent between files (§4) |
+| `FILE_STATUS` | Single-valued (§4) |
+| `Sno` | Page row number (§4) |
+| `MP_NAME` | Tenure suffix contamination; use `mp_name` / `mp_id` (§4) |
 | `Total_Amt` at work grain | MP-level only; null on every work row (§3) |
-| Sanction **timing** | Does not exist in any source (§4.4) |
-| `RECOMMENDATION_DATE` on `Works Sanctioned` rows | A copy of the recommendation date, not a sanction date (§4.4) |
+| Sanction **timing** | Does not exist in any source (§4) |
+| `RECOMMENDATION_DATE` on `Works Sanctioned` rows | A copy of the recommendation date, not a sanction date (§4) |
