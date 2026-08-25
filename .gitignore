@@ -1,0 +1,19 @@
+# Supplied data package — real government data, large, never modified by us
+Dataset/
+
+# Our own generated outputs
+data/interim/
+data/artifacts/
+docs/data_profile.txt
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.env
+
+# Frontend (Phase 9)
+node_modules/
+frontend/dist/
