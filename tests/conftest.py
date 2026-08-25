@@ -38,6 +38,35 @@ def raw_stage_rows() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="session")
+def raw() -> pd.DataFrame:
+    """All 480,768 raw rows, typed and renamed. Loaded once for the whole session."""
+    from mplads.ingest import loader
+
+    return loader.load_raw()
+
+
+@pytest.fixture(scope="session")
+def mp_totals(raw: pd.DataFrame) -> pd.DataFrame:
+    from mplads.ingest import loader
+
+    return loader.load_mp_totals(raw)
+
+
+@pytest.fixture(scope="session")
+def stages(raw: pd.DataFrame) -> pd.DataFrame:
+    from mplads.ingest import loader
+
+    return loader.load_stages(raw)
+
+
+@pytest.fixture(scope="session")
+def works(stages: pd.DataFrame) -> pd.DataFrame:
+    from mplads.ingest import loader
+
+    return loader.load_works(stages)
+
+
+@pytest.fixture(scope="session")
 def work_rows(raw_stage_rows: pd.DataFrame) -> pd.DataFrame:
     """Stage rows that carry a usable join key, with `work_ref` attached."""
     usable = raw_stage_rows[raw_stage_rows["WORK_RECOMMENDATION_DTL_ID"].notna()].copy()
