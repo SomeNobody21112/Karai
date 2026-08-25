@@ -389,7 +389,7 @@ required before embedding.
 |---|---|---:|---|
 | 1 | `WORK_ID` unusable as a key | 82.151% null | Carry for traceability; join on `work_ref` |
 | 2 | Works with `RECOMMENDED_AMOUNT` = 0 | **6** | Flag and exclude from money features; keep the row |
-| 3 | **Back-dated** works (completion before recommendation) | **1,193** | Flag `is_backdated`; null `delay_days` so they cannot corrupt the survival fit; surface as a conformance lead |
+| 3 | **Back-dated** works (completion before recommendation) | **1,193–1,194** | Flag `is_backdated`; null `delay_days` so they cannot corrupt the survival fit; surface as a conformance lead. The exact count depends on `config.DEDUP_KEEP`: 1,193 under `"first"`, 1,194 under `"last"` (our default) — one work whose two recommendation rows straddle its completion date. Measured in Phase 1 |
 | 4 | **Out-of-window** completion dates (after the 2026-05-26 anchor) | **9** | Dates: 2026-06-02, 2026-09-15, 2027-06-28, 2028-11-09, 2034-01-01, 2034-02-24, 2034-07-29, 2044-05-28, 2044-10-20. Flag and exclude from duration maths. **These are why the censoring anchor must be `max(RECOMMENDATION_DATE)`, never `max(all dates)`** — anchoring on 2044 would inflate every open work's duration by ~18 years |
 | 5 | Works with **no recommendation row** (orphans) | **695** | Carry, flag, exclude from recommendation-time features |
 | 6 | Completed with **no sanction record** | **70** | Carry; conformance signal |
@@ -544,3 +544,34 @@ Enforced by `tests/test_data_contract.py`. Using any of these in a calculation i
 | `Total_Amt` at work grain | MP-level only; null on every work row (§3) |
 | Sanction **timing** | Does not exist in any source (§4) |
 | `RECOMMENDATION_DATE` on `Works Sanctioned` rows | A copy of the recommendation date, not a sanction date (§4) |
+
+## 15. Canonical schema (Phase 1 output)
+
+`mplads ingest` builds three deterministic parquet tables in `data/interim/`. Reruns
+produce byte-identical files (asserted by `test_running_twice_yields_identical_file_hashes`).
+Which recommendation/completion row wins when a work has duplicates is set once, in
+`config.DEDUP_KEEP` (default `"last"`), and tie-broken on `(work_ref, source_file,
+raw_row_index)`.
+
+### `works.parquet` — 210,993 rows, one per work
+
+Identity `work_ref`, `mp_id`, `work_recommendation_dtl_id`, `house_code`. Attributes from
+the winning recommendation row: `house`, `tenure_label`, `mp_name`, `state_name`,
+`state_id`, `constituency`, `constituency_name`, `constituency_id`, `implementing_agency`,
+`recommendation_date`, `recommended_amount`, `work_description`, `activity_name`,
+`work_category`, `letter_no`, `flag`, `attach_id`. Stage presence and completion record:
+`is_sanctioned`, `is_completed`, `completion_date`, `actual_amount`, `portal_work_id`.
+Conformance flags, carried never repaired: `is_orphan` (695), `has_nonpositive_amount` (6),
+`is_backdated` (1,194), `is_future_dated` (9), `completed_without_sanction` (70).
+
+### `stages.parquet` — 476,781 rows, one per work-stage
+
+`work_ref`, `mp_id`, `house_code`, `stage`, `stage_seq` (1/2/3), `stage_date`,
+`recommended_amount`, `actual_amount`, `portal_work_id`, `attach_id`, `flag`,
+`source_file`, `raw_row_index`. Sorted by `(work_ref, stage_seq, stage_date, source_file,
+raw_row_index)`. **`stage_date` is null on all 180,517 sanction rows** — no sanction date
+exists, and copying the recommendation date would invent a timeline.
+
+### `mp_totals.parquet` — 3,987 rows, per-MP per-stage portfolio totals
+
+The reconciliation oracle (§3). `mp_total_amount` at MP grain only; never a work feature.

@@ -202,7 +202,7 @@ def load_works(stages: pd.DataFrame | None = None) -> pd.DataFrame:
     rather than vanishing. They are a conformance signal, not noise.
 
     The one selection rule in this module lives here: where a work has more than one
-    recommendation row, the earliest by `recommendation_date` wins, tie-broken on
+    recommendation row, `config.DEDUP_KEEP` decides which wins, tie-broken on
     `(work_ref, source_file, raw_row_index)` so the result never depends on the order the
     files happened to be concatenated in. DATA_CONTRACT section 11.4 records why.
     """
@@ -224,10 +224,10 @@ def load_works(stages: pd.DataFrame | None = None) -> pd.DataFrame:
 
     recommended = stages[stages["stage"] == "RECOMMENDED"]
     deduped = recommended.sort_values(
-        ["recommendation_date", "work_ref", "source_file", "raw_row_index"],
-        na_position="last",
+        ["work_ref", "recommendation_date", "source_file", "raw_row_index"],
+        na_position="first",
         kind="mergesort",
-    ).drop_duplicates("work_ref", keep="first")
+    ).drop_duplicates("work_ref", keep=config.DEDUP_KEEP)
     _log_counts(
         "load_works.dedup_recommended",
         len(recommended),

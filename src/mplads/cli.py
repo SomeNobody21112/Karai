@@ -37,15 +37,27 @@ def cmd_profile(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ingest(_: argparse.Namespace) -> int:
+    """Phase 1: build the canonical works and stages tables and write them to interim."""
+    import logging
+
+    from mplads.ingest import normalise
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(message)s")
+    normalise.run()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mplads", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("paths", help="print resolved paths and check the raw files exist")
     sub.add_parser("profile", help="profile the raw CSVs into docs/data_profile.txt")
+    sub.add_parser("ingest", help="build canonical works/stages parquet in data/interim")
 
     args = parser.parse_args(argv)
-    handlers = {"paths": cmd_paths, "profile": cmd_profile}
+    handlers = {"paths": cmd_paths, "profile": cmd_profile, "ingest": cmd_ingest}
     return handlers[args.command](args)
 
 

@@ -50,6 +50,19 @@ UNUSED_RAW_FILES: dict[str, Path] = {
 
 RANDOM_SEED = 42
 
+#: Which recommendation row wins when a work has more than one (156 works do).
+#: "last" keeps the most recent by `recommendation_date`; "first" keeps the earliest.
+#:
+#: The supplied data package used "first". We use "last": where the portal has recorded a
+#: work twice, the later record is the more current statement of what was recommended.
+#: The choice changes 156 of 210,993 works, so it is nearly immaterial — but it must be
+#: made once, here, rather than implied in two places.
+#:
+#: Determinism does not depend on this value. The sort is always tie-broken on
+#: `(work_ref, source_file, raw_row_index)`, so the winner never depends on the order the
+#: files happened to be concatenated in. See DATA_CONTRACT section 11.4.
+DEDUP_KEEP: str = "last"
+
 # --- Snapshot -------------------------------------------------------------
 #
 # Set in Phase 2 from the data, not guessed. Every censoring decision and every
