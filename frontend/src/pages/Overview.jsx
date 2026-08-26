@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { api, num, rupees } from "../api.js";
 import { Hitl, Loading, Topbar } from "../components/Bits.jsx";
+import { useRole } from "../RoleContext.jsx";
 
 function Stat({ label, value, foot, accent }) {
   return (
@@ -21,10 +22,12 @@ const BAND_COLOR = { HIGH: "#ff5c6c", MEDIUM: "#ffb648", LOW: "#6fb1ff", NONE: "
 export default function Overview() {
   const [stats, setStats] = useState(null);
   const nav = useNavigate();
+  const { params, role, scope } = useRole();
 
   useEffect(() => {
-    api.stats().then(setStats).catch(console.error);
-  }, []);
+    setStats(null);
+    api.stats(params).then(setStats).catch(console.error);
+  }, [role, scope]);
 
   if (!stats) return (<><Topbar title="National Overview" /><div className="content"><Loading /></div></>);
 
@@ -43,7 +46,7 @@ export default function Overview() {
     <>
       <Topbar
         title="National Overview"
-        sub="MPLADS / eSAKSHI · 17th & 18th Lok Sabha · Rajya Sabha"
+        sub={scope ? `Scoped to ${scope}` : "MPLADS / eSAKSHI · 17th & 18th Lok Sabha · Rajya Sabha"}
         right={<span className="pill">Snapshot 2026-05-26</span>}
       />
       <div className="content">

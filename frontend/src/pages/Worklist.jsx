@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Band, Hitl, Loading, Topbar } from "../components/Bits.jsx";
+import { useRole } from "../RoleContext.jsx";
 
 const PAGE = 25;
 
@@ -13,19 +14,20 @@ export default function Worklist() {
   const [band, setBand] = useState("");
   const [page, setPage] = useState(0);
   const nav = useNavigate();
+  const { params, role, scope } = useRole();
 
   useEffect(() => { api.states().then(setStates).catch(() => {}); }, []);
 
   useEffect(() => {
     setData(null);
     const t = setTimeout(() => {
-      api.worklist({ limit: PAGE, offset: page * PAGE, q, state, band })
+      api.worklist({ limit: PAGE, offset: page * PAGE, q, state, band, ...params })
         .then(setData).catch(console.error);
     }, 200);
     return () => clearTimeout(t);
-  }, [q, state, band, page]);
+  }, [q, state, band, page, role, scope]);
 
-  useEffect(() => { setPage(0); }, [q, state, band]);
+  useEffect(() => { setPage(0); }, [q, state, band, role, scope]);
 
   const total = data?.total ?? 0;
   const pages = Math.ceil(total / PAGE);
@@ -33,7 +35,7 @@ export default function Worklist() {
   return (
     <>
       <Topbar
-        title="Audit Worklist"
+        title="Investigation Queue"
         sub="Ranked by Audit-ROI = priority × ₹ exposure × corroboration"
         right={<span className="pill">{num(total)} leads</span>}
       />

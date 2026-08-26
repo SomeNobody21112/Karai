@@ -1,0 +1,134 @@
+import { useEffect, useState } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { api, num, rupees } from "../api.js";
+import { Loading, Topbar } from "../components/Bits.jsx";
+
+const STATE_STYLE = {
+  NORMAL: { c: "#6fb1ff", t: "Normal" },
+  EMERGING: { c: "#38d39f", t: "Emerging" },
+  GROWING: { c: "#38d39f", t: "Growing" },
+  STABLE: { c: "#6fb1ff", t: "Stable" },
+  DECLINING: { c: "#ffb648", t: "Declining" },
+  SUDDEN_CHANGE: { c: "#ff5c6c", t: "Sudden change" },
+  PERSISTENT_CHANGE: { c: "#ffb648", t: "Persistent change" },
+  INSUFFICIENT_HISTORY: { c: "#63718f", t: "Insufficient history" },
+};
+
+function Tag({ value }) {
+  const s = STATE_STYLE[value] || { c: "#63718f", t: value };
+  return (
+    <span className="badge" style={{ color: s.c, background: "#1c2c44" }}>{s.t}</span>
+  );
+}
+
+export default function Trends() {
+  const [d, setD] = useState(null);
+  useEffect(() => { api.temporal().then(setD).catch(console.error); }, []);
+
+  if (!d) return (<><Topbar title="Temporal Intelligence" /><div className="content"><Loading /></div></>);
+
+  const series = d.national_series.map((s) => ({
+    period: s.period, works: s.works,
+    median: s.median_amount ? Math.round(s.median_amount / 1000) : null,
+  }));
+
+  return (
+    <>
+      <Topbar title="Temporal Intelligence"
+        sub="How the scheme is changing over time"
+        right={<span className="pill">{num(d.counts.agencies_analysed)} agencies analysed</span>} />
+      <div className="content">
+        <div className="hitl">
+          <span>📈</span>
+          <span>
+            <strong>Method:</strong> {d.method_note}
+          </span>
+        </div>
+
+        <div className="grid cols-2">
+          <div className="card">
+            <h3>National monthly work volume</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={series}>
+                <CartesianGrid stroke="#223049" vertical={false} />
+                <XAxis dataKey="period" stroke="#63718f" fontSize={10} minTickGap={30} />
+                <YAxis stroke="#63718f" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#1a2336", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="works" stroke="#4f8cff" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div style={{ marginTop: 10 }}>
+              <Tag value={d.national_volume.classification} />
+              <span className="muted" style={{ fontSize: 12.5, marginLeft: 10 }}>
+                {d.national_volume.explanation}
+              </span>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3>National median recommended amount (₹ thousand)</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={series}>
+                <CartesianGrid stroke="#223049" vertical={false} />
+                <XAxis dataKey="period" stroke="#63718f" fontSize={10} minTickGap={30} />
+                <YAxis stroke="#63718f" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#1a2336", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="median" stroke="#38d39f" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div style={{ marginTop: 10 }}>
+              <Tag value={d.national_amount.classification} />
+              <span className="muted" style={{ fontSize: 12.5, marginLeft: 10 }}>
+                {d.national_amount.explanation}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="section-title">Emerging Public Works Radar</div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Work type</th><th>Status</th>
+              <th className="num">Recent works</th><th className="num">Share change</th>
+            </tr></thead>
+            <tbody>
+              {d.archetype_radar.slice(0, 12).map((a) => (
+                <tr key={a.archetype_id}>
+                  <td>{a.label}</td>
+                  <td><Tag value={a.classification} /></td>
+                  <td className="num">{num(a.recent_works)}</td>
+                  <td className="num" style={{ color: a.delta >= 0 ? "#38d39f" : "#ffb648" }}>
+                    {a.delta >= 0 ? "+" : ""}{(a.delta * 100).toFixed(2)} pp
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="section-title">
+          Agencies whose behaviour changed ({num(d.counts.agencies_changed)} of {num(d.counts.agencies_analysed)})
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Implementing agency</th><th>Status</th>
+              <th className="num">Total works</th><th>Why flagged</th>
+            </tr></thead>
+            <tbody>
+              {d.agency_trends.slice(0, 20).map((a) => (
+                <tr key={a.entity}>
+                  <td className="desc-cell">{a.entity}</td>
+                  <td><Tag value={a.classification} /></td>
+                  <td className="num">{num(a.total_works)}</td>
+                  <td className="muted" style={{ fontSize: 12 }}>{a.explanation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}

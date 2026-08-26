@@ -80,3 +80,59 @@ def test_api_serves_the_artifacts():
     case = client.get(f"/api/case/{top['work_ref']}").json()
     assert case["not_a_fraud_finding"] is True
     assert client.get("/api/case/NON-EXISTENT").status_code == 404
+
+
+# ----------------------------------------------------------------- role scoping
+
+
+def test_role_scoping_narrows_the_queue():
+    """Role simulation: a state view must be a strict subset of the national view."""
+    from fastapi.testclient import TestClient
+
+    from mplads.api.app import app
+
+    if not (config.ARTIFACTS / "case_files.json").exists():
+        pytest.skip("run the pipeline first")
+    client = TestClient(app)
+
+    national = client.get("/api/worklist?limit=1").json()["total"]
+    scoped = client.get("/api/worklist?role=state&scope=Bihar&limit=1").json()
+    assert 0 < scoped["total"] < national
+    assert all(i["state"] == "Bihar" for i in
+               client.get("/api/worklist?role=state&scope=Bihar&limit=50").json()["items"])
+
+
+def test_every_role_declares_its_scope_field():
+    from fastapi.testclient import TestClient
+
+    from mplads.api.app import app
+
+    client = TestClient(app)
+    roles = client.get("/api/roles").json()
+    assert set(roles["roles"]) == {"ministry", "state", "district", "mp"}
+    assert roles["roles"]["ministry"]["scope_field"] is None
+    assert "no authentication" in roles["note"].lower()
+
+
+def test_intelligence_endpoints_all_serve():
+    from fastapi.testclient import TestClient
+
+    from mplads.api.app import app
+
+    if not (config.ARTIFACTS / "stats.json").exists():
+        pytest.skip("run the pipeline first")
+    client = TestClient(app)
+    for endpoint in (
+        "/api/temporal", "/api/transparency", "/api/compliance",
+        "/api/early-warning", "/api/health-index", "/api/archetypes", "/api/duplicates",
+    ):
+        assert client.get(endpoint).status_code == 200, endpoint
+
+
+def test_case_files_carry_the_new_intelligence(artifacts):
+    cases, _ = artifacts
+    sample = cases[:200]
+    assert all("early_warning" in c for c in sample)
+    assert all("compliance_findings" in c for c in sample)
+    assert all("suggested_actions" in c and c["suggested_actions"] for c in sample)
+    assert all("does not determine fraud" in c["disclaimer"] for c in sample)

@@ -1,0 +1,114 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api, num, rupees } from "../api.js";
+import { Loading, Topbar } from "../components/Bits.jsx";
+
+const CLASS_COLOR = {
+  EXACT: "#ff5c6c", NEAR_EXACT: "#ffb648",
+  HIGH_SIMILARITY: "#6fb1ff", POSSIBLE_REPEAT: "#93a1bd",
+};
+
+const PAGE = 20;
+
+export default function Duplicates() {
+  const [d, setD] = useState(null);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setD(null);
+    api.duplicates({ limit: PAGE, offset: page * PAGE, concerning_only: true })
+      .then(setD).catch(console.error);
+  }, [page]);
+
+  if (!d) return (<><Topbar title="Near-Duplicate Detection" /><div className="content"><Loading /></div></>);
+
+  const s = d.summary || {};
+  const pages = Math.ceil(d.total / PAGE);
+
+  return (
+    <>
+      <Topbar title="Near-Duplicate Detection"
+        sub="Semantic similarity over 384-dimensional description embeddings"
+        right={<span className="pill">{num(d.total)} concerning pairs</span>} />
+      <div className="content">
+        <div className="hitl">
+          <span>🔍</span>
+          <span>
+            <strong>Repeated descriptions are normal in this scheme</strong> — one MP
+            recommending forty street lights writes the same sentence forty times. So we only
+            treat a pair as concerning when it is near-identical, <strong>from the same
+            implementing agency, for a near-identical amount</strong>. That is the shape a
+            repeated claim would take. It is a question for a human, never proof.
+          </span>
+        </div>
+
+        <div className="grid cols-4">
+          <div className="card stat">
+            <div className="label">Candidate pairs found</div>
+            <div className="value" style={{ fontSize: 26 }}>{num(s.total_pairs)}</div>
+            <div className="foot">across state × work-type blocks</div>
+          </div>
+          <div className="card stat">
+            <div className="label">Administratively concerning</div>
+            <div className="value accent" style={{ fontSize: 26 }}>{num(s.concerning_pairs)}</div>
+            <div className="foot">same agency + near-identical amount</div>
+          </div>
+          <div className="card stat">
+            <div className="label">Character-identical text</div>
+            <div className="value" style={{ fontSize: 26 }}>{num(s.identical_text_pairs)}</div>
+          </div>
+          <div className="card stat">
+            <div className="label">Same implementing agency</div>
+            <div className="value" style={{ fontSize: 26 }}>{num(s.same_agency_pairs)}</div>
+          </div>
+        </div>
+
+        <div className="section-title">Candidate pairs</div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Work A</th><th>Work B</th><th>Similarity</th>
+              <th className="num">Amount</th><th>State</th>
+            </tr></thead>
+            <tbody>
+              {d.items.map((p, i) => (
+                <tr key={i}>
+                  <td>
+                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#cfe0ff" }}>
+                      {p.work_ref_a}
+                    </Link>
+                    <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_a}</div>
+                  </td>
+                  <td>
+                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#cfe0ff" }}>
+                      {p.work_ref_b}
+                    </Link>
+                    <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_b}</div>
+                  </td>
+                  <td>
+                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#1c2c44" }}>
+                      {(p.similarity * 100).toFixed(1)}%
+                    </span>
+                    <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>
+                      {p.classification.replace("_", " ")}
+                    </div>
+                  </td>
+                  <td className="num">{rupees(p.amount_a)}</td>
+                  <td className="muted">{p.state_name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pager">
+          <span className="muted">Page {page + 1} of {num(pages)}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" disabled={page === 0} onClick={() => setPage(page - 1)}>← Prev</button>
+            <button className="btn" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>Next →</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

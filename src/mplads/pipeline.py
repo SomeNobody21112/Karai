@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from mplads import config
+from mplads.intelligence import compliance, duplicates, early_warning, temporal, transparency
 
 LOGGER = logging.getLogger(__name__)
 SNAPSHOT = pd.Timestamp(config.SNAPSHOT_DATE)
@@ -264,6 +265,9 @@ def add_fusion(works: pd.DataFrame) -> pd.DataFrame:
     works["sig_change_point"] = works["change_point"].fillna(0.0)
     works["sig_anomaly"] = works.get("anomaly_flag", pd.Series(0.0, index=works.index)).fillna(0.0)
 
+    dup = works.get("duplicate_similarity", pd.Series(np.nan, index=works.index)).fillna(0.0)
+    works["sig_duplicate"] = np.where(dup >= config.DUPLICATE_SIGNAL_THRESHOLD, dup, 0.0)
+
     signal_cols = {
         "peer_amount": "sig_peer_amount",
         "peer_duration": "sig_peer_duration",
@@ -271,6 +275,7 @@ def add_fusion(works: pd.DataFrame) -> pd.DataFrame:
         "conformance": "sig_conformance",
         "change_point": "sig_change_point",
         "anomaly": "sig_anomaly",
+        "duplicate": "sig_duplicate",
     }
 
     # Noisy-OR fusion with configured weights. Priority in [0,1).
@@ -343,6 +348,13 @@ def _evidence(row: pd.Series) -> list[dict]:
         ev.append({"signal": "Statistical outlier", "family": "multivariate",
                    "detail": "A trained anomaly detector (IsolationForest) flags this work's "
                              "amount-and-age profile as unusual against the national portfolio."})
+    if row.get("sig_duplicate", 0) > 0:
+        partner = row.get("duplicate_partner")
+        ev.append({"signal": "Near-duplicate work", "family": "duplication",
+                   "detail": f"A work in the same state and archetype is "
+                             f"{row['duplicate_similarity'] * 100:.1f}% semantically similar "
+                             f"({partner}). Repeated descriptions are common in this scheme, "
+                             f"so a human should confirm these are genuinely separate works."})
     return ev
 
 
@@ -372,9 +384,45 @@ def build_case_file(row: pd.Series) -> dict:
         "n_signal_families": int(row["n_families"]),
         "audit_roi": round(float(row["audit_roi"]), 0),
         "evidence": _evidence(row),
+        "compliance_findings": compliance.findings_for(row),
+        "early_warning": {
+            "level": row.get("early_warning_level", "LOW"),
+            "score": round(float(row.get("early_warning_score", 0.0)), 3),
+            "reason": row.get("early_warning_reason", ""),
+            "stall_ratio": None if pd.isna(row.get("stall_ratio")) else round(float(row["stall_ratio"]), 2),
+            "peer_median_days": None if pd.isna(row.get("peer_median_days")) else int(row["peer_median_days"]),
+        },
+        "duplicate": None if not row.get("duplicate_partner") or pd.isna(row.get("duplicate_similarity")) else {
+            "partner_work_ref": row["duplicate_partner"],
+            "similarity": round(float(row["duplicate_similarity"]), 4),
+            "classification": duplicates.classify(float(row["duplicate_similarity"])),
+        },
+        "lifecycle": {
+            "stage": "Completed" if row["is_completed"] else ("Sanctioned" if row["is_sanctioned"] else "Recommended"),
+            "days_open": None if pd.isna(row.get("duration_days")) else int(row["duration_days"]),
+            "note": "Administrative lifecycle stage, not physical construction progress.",
+        },
         "recommended_next_step": _recommend(row),
+        "suggested_actions": _actions(row),
         "not_a_fraud_finding": True,
+        "disclaimer": "This system identifies patterns warranting human investigation; "
+                      "it does not determine fraud.",
     }
+
+
+def _actions(row: pd.Series) -> list[str]:
+    """Concrete things an officer can do, driven by which signals actually fired."""
+    actions = []
+    if row.get("sig_duplicate", 0) > 0:
+        actions.append("Check duplicate possibility against the matched work")
+    if row.get("compliance_flags", 0) > 0:
+        actions.append("Review the lifecycle history and sanction record")
+    if row.get("sig_peer_amount", 0) > 0:
+        actions.append("Compare scope and estimate with peer works")
+    if row.get("early_warning_level") in {"HIGH", "CRITICAL"}:
+        actions.append("Request a progress update from the implementing agency")
+    actions.append("Verify supporting documents and field evidence")
+    return actions
 
 
 def _recommend(row: pd.Series) -> str:
@@ -433,7 +481,18 @@ def run(artifacts_dir: Path | None = None) -> pd.DataFrame:
     works = add_completion_risk(works)
     works = add_change_points(works)
     works = add_anomaly(works)
+
+    # --- intelligence engines -------------------------------------------------
+    pairs = duplicates.detect(works)
+    if not pairs.empty:
+        works = works.merge(
+            duplicates.per_work_signal(pairs, works), on="work_ref", how="left"
+        )
+        pairs.to_parquet(out / "duplicate_pairs.parquet", index=False)
+
+    works = compliance.evaluate(works)
     works = add_fusion(works)
+    works = early_warning.score(works)
 
     # Worklist: everything with >=2 families (the corroboration rule), ranked by audit-ROI.
     worklist = works[works["band"].isin(["MEDIUM", "HIGH"])].sort_values(
@@ -444,11 +503,96 @@ def run(artifacts_dir: Path | None = None) -> pd.DataFrame:
     works.to_parquet(out / "works_scored.parquet", index=False)
     (out / "case_files.json").write_text(json.dumps(case_files, default=str), encoding="utf-8")
     catalog.to_parquet(out / "archetypes.parquet", index=False)
-    (out / "stats.json").write_text(
-        json.dumps(build_stats(works, catalog), default=str), encoding="utf-8"
+
+    stats = build_stats(works, catalog)
+    stats["compliance"] = compliance.summary(works)
+    stats["early_warning"] = early_warning.summary(works)
+    stats["duplicates"] = _duplicate_summary(pairs)
+    stats["archetype_intelligence"] = _archetype_intelligence(works)
+    stats["health_index"] = _health_index(works, pairs)
+    (out / "stats.json").write_text(json.dumps(stats, default=str), encoding="utf-8")
+
+    (out / "temporal.json").write_text(
+        json.dumps(temporal.build(works), default=str), encoding="utf-8"
+    )
+    (out / "transparency.json").write_text(
+        json.dumps(transparency.build(works), default=str), encoding="utf-8"
     )
     LOGGER.info("wrote %s case files; artifacts in %s", f"{len(case_files):,}", out)
     return works
+
+
+def _duplicate_summary(pairs: pd.DataFrame) -> dict:
+    if pairs.empty:
+        return {"total_pairs": 0, "by_classification": {}, "top": []}
+    focus = duplicates.concerning(pairs)
+    return {
+        "total_pairs": int(len(pairs)),
+        "concerning_pairs": int(len(focus)),
+        "by_classification": pairs["classification"].value_counts().to_dict(),
+        "same_agency_pairs": int(pairs["same_implementing_agency"].sum()),
+        "identical_text_pairs": int(pairs["identical_text"].sum()),
+        "top": focus.head(100).to_dict("records"),
+        "method_note": "Semantic similarity over 384-d embeddings within state x archetype "
+                       "blocks. Repeated descriptions are normal in this scheme, so only "
+                       "pairs from the same implementing agency for a near-identical amount "
+                       "are treated as concerning. An investigation lead, never proof.",
+    }
+
+
+def _archetype_intelligence(works: pd.DataFrame) -> list[dict]:
+    """Per-archetype profile: size, geography, lifecycle, completion and risk."""
+    frame = works.dropna(subset=["archetype_id"])
+    rows = []
+    for aid, group in frame.groupby("archetype_id"):
+        completed = group[group["is_completed"]]
+        rows.append({
+            "archetype_id": int(aid),
+            "label": group["archetype_label"].iloc[0],
+            "n_works": int(len(group)),
+            "states": int(group["state_name"].nunique()),
+            "agencies": int(group["implementing_agency"].nunique()),
+            "median_amount": float(group["recommended_amount"].median() or 0),
+            "completion_rate": round(float(group["is_completed"].mean()), 3),
+            "median_days_to_complete": None if completed.empty else float(completed["duration_days"].median()),
+            "lead_rate": round(float(group["band"].isin(["MEDIUM", "HIGH"]).mean()), 3),
+            "total_exposure": float(group["rs_exposure"].sum()),
+            "top_state": group["state_name"].mode().iloc[0] if not group["state_name"].mode().empty else None,
+        })
+    return sorted(rows, key=lambda r: -r["n_works"])
+
+
+def _health_index(works: pd.DataFrame, pairs: pd.DataFrame) -> dict:
+    """MPLADS Operational Health Index — a derived analytical index,every component explained."""
+    total = len(works)
+    completion = float(works["is_completed"].mean())
+    compliance_clean = 1 - float((works["compliance_flags"] > 0).mean())
+    lead_free = 1 - float(works["band"].isin(["MEDIUM", "HIGH"]).mean())
+    dup_rate = 0.0 if pairs.empty else min(1.0, len(pairs) / max(total, 1))
+    dup_clean = 1 - dup_rate
+    completeness = float(works["work_description"].notna().mean())
+
+    components = [
+        {"name": "Completion performance", "value": round(completion, 3), "weight": 0.30,
+         "explanation": f"{completion * 100:.1f}% of works have a completion record."},
+        {"name": "Record compliance", "value": round(compliance_clean, 3), "weight": 0.25,
+         "explanation": f"{(1 - compliance_clean) * 100:.1f}% of works carry at least one "
+                        f"lifecycle-consistency flag."},
+        {"name": "Investigation-lead rate", "value": round(lead_free, 3), "weight": 0.20,
+         "explanation": f"{(1 - lead_free) * 100:.1f}% of works were surfaced as leads."},
+        {"name": "Duplicate-candidate rate", "value": round(dup_clean, 3), "weight": 0.15,
+         "explanation": f"{dup_rate * 100:.2f}% of works have a near-duplicate candidate."},
+        {"name": "Data completeness", "value": round(completeness, 3), "weight": 0.10,
+         "explanation": f"{completeness * 100:.1f}% of works carry a usable description."},
+    ]
+    score = sum(c["value"] * c["weight"] for c in components)
+    return {
+        "score": round(100 * score, 1),
+        "components": components,
+        "note": "A derived analytical index, not an official government measure. Each "
+                "component is measured and explained; the weights are set in code and "
+                "visible here.",
+    }
 
 
 if __name__ == "__main__":

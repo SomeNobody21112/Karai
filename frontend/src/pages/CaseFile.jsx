@@ -108,13 +108,55 @@ export default function CaseFile() {
               </dl>
             </div>
 
+            {c.early_warning && c.early_warning.level !== "LOW" && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3>Early warning — {c.early_warning.level}</h3>
+                <Meter value={c.early_warning.score}
+                  color={c.early_warning.level === "CRITICAL" ? "#ff5c6c" : "#ffb648"} />
+                <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+                  {c.early_warning.reason}
+                </p>
+              </div>
+            )}
+
+            {c.compliance_findings?.length > 0 && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3>Compliance findings</h3>
+                {c.compliance_findings.map((f, i) => (
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ fontWeight: 620, fontSize: 13 }}>
+                      {f.check}
+                      <span className="fam-tag">{f.authority.replace("_", " ")}</span>
+                      <span className="fam-tag">{f.severity}</span>
+                    </div>
+                    <div className="muted" style={{ fontSize: 12 }}>{f.meaning}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {c.duplicate && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3>Near-duplicate candidate</h3>
+                <dl className="kv">
+                  <dt>Matched work</dt>
+                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#cfe0ff" }}>
+                    {c.duplicate.partner_work_ref}</Link></dd>
+                  <dt>Similarity</dt><dd>{(c.duplicate.similarity * 100).toFixed(1)}%</dd>
+                  <dt>Classification</dt><dd>{c.duplicate.classification.replace("_", " ")}</dd>
+                </dl>
+              </div>
+            )}
+
             <div className="action-panel">
               <div className="label">Recommended next step</div>
               <div className="text">{c.recommended_next_step}</div>
-              <div className="note">
-                This is an investigation lead, not a fraud finding. The system recommends
-                where to look; a human authority decides what happens next.
-              </div>
+              {c.suggested_actions?.length > 0 && (
+                <ul style={{ margin: "12px 0 0 18px", fontSize: 13, color: "var(--text-dim)" }}>
+                  {c.suggested_actions.map((a, i) => <li key={i}>{a}</li>)}
+                </ul>
+              )}
+              <div className="note">{c.disclaimer}</div>
             </div>
           </div>
         </div>

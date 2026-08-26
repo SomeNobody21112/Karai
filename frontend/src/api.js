@@ -7,9 +7,27 @@ async function get(path) {
 }
 
 export const api = {
-  stats: () => get("/api/stats"),
+  stats: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null)
+    ).toString();
+    return get(`/api/stats?${q}`);
+  },
   states: () => get("/api/states"),
   models: () => get("/api/models"),
+  roles: () => get("/api/roles"),
+  temporal: () => get("/api/temporal"),
+  transparency: () => get("/api/transparency"),
+  compliance: () => get("/api/compliance"),
+  earlyWarning: () => get("/api/early-warning"),
+  healthIndex: () => get("/api/health-index"),
+  archetypes: () => get("/api/archetypes"),
+  duplicates: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null)
+    ).toString();
+    return get(`/api/duplicates?${q}`);
+  },
   worklist: (params = {}) => {
     const q = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== "" && v != null)

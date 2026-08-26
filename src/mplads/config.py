@@ -101,7 +101,11 @@ SIGNAL_WEIGHTS: dict[str, float] = {
     "conformance": 0.75,      # family: lifecycle
     "change_point": 0.50,     # family: behaviour
     "anomaly": 0.40,          # family: multivariate
+    "duplicate": 0.65,        # family: duplication
 }
+
+#: Near-duplicate similarity at or above which the duplication signal fires.
+DUPLICATE_SIGNAL_THRESHOLD: float = 0.97
 
 #: Which family each signal belongs to. Confidence counts distinct families, not signals,
 #: so two signals reading the same clock cannot manufacture corroboration.
@@ -112,6 +116,7 @@ SIGNAL_FAMILY: dict[str, str] = {
     "conformance": "lifecycle",
     "change_point": "behaviour",
     "anomaly": "multivariate",
+    "duplicate": "duplication",
 }
 
 
