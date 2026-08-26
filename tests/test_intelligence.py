@@ -201,3 +201,50 @@ def test_duplicate_summary_separates_concerning_from_raw(artifacts: dict):
     summary = artifacts["duplicates"]
     assert summary["concerning_pairs"] < summary["total_pairs"]
     assert "never proof" in summary["method_note"]
+
+
+# --------------------------------------------------------------- archetype labels
+
+
+def test_labels_strip_transliterated_function_words():
+    from mplads.intelligence.labels import build_label
+
+    label, interpretable, _ = build_label(["lai", "ke", "lai ki", "solar light", "solar"])
+    assert "lai" not in label.lower() and " ke " not in f" {label.lower()} "
+    assert "solar" in label.lower()
+    assert interpretable
+
+
+def test_labels_collapse_nested_ngrams():
+    from mplads.intelligence.labels import build_label
+
+    label, _, _ = build_label(["hall", "community hall", "community", "mandap"])
+    assert label.lower().count("hall") == 1
+
+
+def test_a_glue_only_cluster_is_marked_uninterpretable_not_invented():
+    from mplads.intelligence.labels import build_label
+
+    label, interpretable, note = build_label(["ke", "ki", "ka", "se", "mein"])
+    assert not interpretable
+    assert "uninterpretable" in label.lower()
+    assert note
+
+
+def test_hindi_work_nouns_are_glossed_to_english():
+    from mplads.intelligence.labels import build_label
+
+    label, _, _ = build_label(["ka nirman", "sadak", "mandir"])
+    lowered = label.lower()
+    assert "construction" in lowered or "road" in lowered or "temple" in lowered
+    assert "nirman" not in lowered
+
+
+def test_catalog_labels_are_readable(artifacts: dict):
+    """No shipped label may be pure transliterated glue."""
+    for profile in artifacts["archetype_intelligence"]:
+        label = profile["label"].lower()
+        if profile.get("interpretable") is False:
+            assert "uninterpretable" in label
+        else:
+            assert not label.startswith(("ke ", "ki ", "lai ", "nu ")), profile["label"]

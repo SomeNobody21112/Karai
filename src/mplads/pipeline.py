@@ -57,6 +57,18 @@ def add_archetypes(works: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     works["archetype_id"] = works["archetype_id"].astype("Int64")
     labels = dict(zip(catalog["archetype_id"], catalog["label"]))
     works["archetype_label"] = works["archetype_id"].map(labels).fillna("unassigned")
+    for src, dst, default in [
+        ("interpretable", "archetype_interpretable", True),
+        ("note", "archetype_note", ""),
+        ("top_terms", "archetype_top_terms", ""),
+    ]:
+        if src in catalog.columns:
+            works[dst] = works["archetype_id"].map(
+                dict(zip(catalog["archetype_id"], catalog[src]))
+            )
+            works[dst] = works[dst].fillna(default)
+        else:
+            works[dst] = default
 
     catalog = catalog.rename(columns={"n_descriptions": "n_works"})
     LOGGER.info("archetypes: %s of %s works assigned (trained KMeans)",
@@ -556,6 +568,9 @@ def _archetype_intelligence(works: pd.DataFrame) -> list[dict]:
             "completion_rate": round(float(group["is_completed"].mean()), 3),
             "median_days_to_complete": None if completed.empty else float(completed["duration_days"].median()),
             "lead_rate": round(float(group["band"].isin(["MEDIUM", "HIGH"]).mean()), 3),
+            "interpretable": bool(group["archetype_interpretable"].iloc[0]),
+            "note": group["archetype_note"].iloc[0],
+            "top_terms": group["archetype_top_terms"].iloc[0],
             "total_exposure": float(group["rs_exposure"].sum()),
             "top_state": group["state_name"].mode().iloc[0] if not group["state_name"].mode().empty else None,
         })
