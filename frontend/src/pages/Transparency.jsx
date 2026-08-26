@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, num } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
+import { Reveal } from "../components/Reveal.jsx";
 
 const TYPE = {
-  "Direct measurement": { c: "#38d39f", t: "Measured" },
-  "Model-derived": { c: "#6fb1ff", t: "Derived" },
-  Unavailable: { c: "#ff5c6c", t: "Unavailable" },
+  "Direct measurement": { c: "#35d9a6", t: "Measured" },
+  "Model-derived": { c: "#6c8cff", t: "Derived" },
+  Unavailable: { c: "#ff5f7a", t: "Unavailable" },
 };
 
 export default function Transparency() {
@@ -27,24 +28,25 @@ export default function Transparency() {
           <span><strong>{d.statement}</strong></span>
         </div>
 
-        <div className="grid cols-3">
+        <Reveal><div className="grid cols-3">
           <div className="card stat">
             <div className="label">Measured directly</div>
-            <div className="value" style={{ fontSize: 28, color: "#38d39f" }}>{d.totals.available_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#35d9a6" }}>{d.totals.available_metrics}</div>
             <div className="foot">straight from government records</div>
           </div>
           <div className="card stat">
             <div className="label">Model-derived</div>
-            <div className="value" style={{ fontSize: 28, color: "#6fb1ff" }}>{d.totals.derived_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#6c8cff" }}>{d.totals.derived_metrics}</div>
             <div className="foot">computed, with stated confidence</div>
           </div>
           <div className="card stat">
             <div className="label">Unavailable</div>
-            <div className="value" style={{ fontSize: 28, color: "#ff5c6c" }}>{d.totals.unavailable_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#ff5f7a" }}>{d.totals.unavailable_metrics}</div>
             <div className="foot">absent from public data — not faked</div>
           </div>
         </div>
 
+        </Reveal>
         {["Direct measurement", "Model-derived", "Unavailable"].map((type) => (
           <div key={type}>
             <div className="section-title">{TYPE[type].t}</div>
@@ -56,7 +58,7 @@ export default function Transparency() {
                     <tr key={m.metric}>
                       <td style={{ fontWeight: 600 }}>{m.metric}</td>
                       <td className="muted" style={{ fontSize: 12 }}>{m.source}</td>
-                      <td><span className="badge" style={{ color: TYPE[type].c, background: "#1c2c44" }}>{m.confidence}</span></td>
+                      <td><span className="badge" style={{ color: TYPE[type].c, background: "#1a2338" }}>{m.confidence}</span></td>
                       <td className="muted" style={{ fontSize: 12 }}>{m.note}</td>
                     </tr>
                   ))}
@@ -74,7 +76,7 @@ export default function Transparency() {
                 <span>{f.field}</span><span>{f.present_pct}%</span>
               </div>
               <div className="meter">
-                <span style={{ width: `${f.present_pct}%`, background: f.present_pct > 95 ? "#38d39f" : "#ffb648" }} />
+                <span style={{ width: `${f.present_pct}%`, background: f.present_pct > 95 ? "#35d9a6" : "#ffb340" }} />
               </div>
             </div>
           ))}

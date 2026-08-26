@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
-import { Band, Hitl, Loading, Topbar } from "../components/Bits.jsx";
+import { Band, Hitl, Loading, SkeletonRows, Topbar } from "../components/Bits.jsx";
 import { useRole } from "../RoleContext.jsx";
 
 const PAGE = 25;
@@ -41,7 +41,7 @@ export default function Worklist() {
       />
       <div className="content">
         <Hitl />
-        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-dim)" }}>
+        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-2)" }}>
           <strong style={{ color: "var(--text)" }}>What this list is:</strong> every work below was
           flagged by <strong>at least two independent kinds of evidence</strong>. It is ordered so
           the works with the most money-at-risk per hour of audit are on top. Click any row to see
@@ -61,7 +61,7 @@ export default function Worklist() {
           </select>
         </div>
 
-        {!data ? <Loading /> : data.items.length === 0 ? (
+        {!data ? <SkeletonRows rows={8} /> : data.items.length === 0 ? (
           <div className="empty">No leads match these filters.</div>
         ) : (
           <>
@@ -76,7 +76,8 @@ export default function Worklist() {
                 </thead>
                 <tbody>
                   {data.items.map((r, i) => (
-                    <tr key={r.work_ref} onClick={() => nav(`/case/${r.work_ref}`)}>
+                    <tr key={r.work_ref} onClick={() => nav(`/case/${r.work_ref}`)}
+                      style={{ animationDelay: `${i * 26}ms` }}>
                       <td className="rank">{page * PAGE + i + 1}</td>
                       <td>
                         <div className="desc-cell">{r.description || "—"}</div>
@@ -88,7 +89,7 @@ export default function Worklist() {
                       <td><Band value={r.band} /></td>
                       <td className="num">{rupees(r.recommended_amount)}</td>
                       <td className="num">{rupees(r.exposure_rupees)}</td>
-                      <td className="num" style={{ fontWeight: 700, color: "#cfe0ff" }}>
+                      <td className="num" style={{ fontWeight: 700, color: "#bacdff" }}>
                         {rupees(r.audit_roi)}
                       </td>
                     </tr>

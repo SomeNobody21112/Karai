@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
+import { CountUp, Reveal } from "../components/Reveal.jsx";
 
 const CLASS_COLOR = {
-  EXACT: "#ff5c6c", NEAR_EXACT: "#ffb648",
-  HIGH_SIMILARITY: "#6fb1ff", POSSIBLE_REPEAT: "#93a1bd",
+  EXACT: "#ff5f7a", NEAR_EXACT: "#ffb340",
+  HIGH_SIMILARITY: "#6c8cff", POSSIBLE_REPEAT: "#9aa8c7",
 };
 
 const PAGE = 20;
@@ -42,7 +43,7 @@ export default function Duplicates() {
           </span>
         </div>
 
-        <div className="grid cols-4">
+        <Reveal><div className="grid cols-4">
           <div className="card stat">
             <div className="label">Candidate pairs found</div>
             <div className="value" style={{ fontSize: 26 }}>{num(s.total_pairs)}</div>
@@ -63,7 +64,8 @@ export default function Duplicates() {
           </div>
         </div>
 
-        <div className="section-title">Candidate pairs</div>
+        </Reveal>
+        <Reveal><div className="section-title">Candidate pairs</div></Reveal>
         <div className="table-wrap">
           <table>
             <thead><tr>
@@ -74,19 +76,19 @@ export default function Duplicates() {
               {d.items.map((p, i) => (
                 <tr key={i}>
                   <td>
-                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#cfe0ff" }}>
+                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#bacdff" }}>
                       {p.work_ref_a}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_a}</div>
                   </td>
                   <td>
-                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#cfe0ff" }}>
+                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#bacdff" }}>
                       {p.work_ref_b}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_b}</div>
                   </td>
                   <td>
-                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#1c2c44" }}>
+                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#1a2338" }}>
                       {(p.similarity * 100).toFixed(1)}%
                     </span>
                     <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>

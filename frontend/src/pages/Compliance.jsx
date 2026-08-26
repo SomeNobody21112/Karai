@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, num, rupees } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
+import { Reveal } from "../components/Reveal.jsx";
 
 const AUTHORITY = {
-  OFFICIAL_RULE: { c: "#ff5c6c", t: "Official rule" },
-  OBSERVED_BASELINE: { c: "#ffb648", t: "Observed baseline" },
-  STATISTICAL_OUTLIER: { c: "#6fb1ff", t: "Statistical outlier" },
+  OFFICIAL_RULE: { c: "#ff5f7a", t: "Official rule" },
+  OBSERVED_BASELINE: { c: "#ffb340", t: "Observed baseline" },
+  STATISTICAL_OUTLIER: { c: "#6c8cff", t: "Statistical outlier" },
 };
-const SEV = { HIGH: "#ff5c6c", MEDIUM: "#ffb648", LOW: "#6fb1ff" };
+const SEV = { HIGH: "#ff5f7a", MEDIUM: "#ffb340", LOW: "#6c8cff" };
 
 export default function Compliance() {
   const [c, setC] = useState(null);
@@ -43,21 +44,21 @@ export default function Compliance() {
                 </span>
                 <span>{(comp.value * 100).toFixed(1)}%</span>
               </div>
-              <div className="meter"><span style={{ width: `${comp.value * 100}%`, background: "#4f8cff" }} /></div>
+              <div className="meter"><span style={{ width: `${comp.value * 100}%`, background: "#6c8cff" }} /></div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{comp.explanation}</div>
             </div>
           ))}
-          <div className="muted" style={{ fontSize: 12, borderTop: "1px solid var(--border-soft)", paddingTop: 10 }}>
+          <div className="muted" style={{ fontSize: 12, borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
             {h.note}
           </div>
         </div>
 
-        <div className="section-title">Early-warning levels (open works)</div>
+        <Reveal><div className="section-title">Early-warning levels (open works)</div></Reveal>
         <div className="grid cols-4">
           {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((lvl) => (
             <div className="card stat" key={lvl}>
               <div className="label">{lvl}</div>
-              <div className="value" style={{ fontSize: 26, color: SEV[lvl] || "#93a1bd" }}>
+              <div className="value" style={{ fontSize: 26, color: SEV[lvl] || "#9aa8c7" }}>
                 {num(w.levels[lvl] || 0)}
               </div>
               <div className="foot">{rupees(w.exposure_by_level?.[lvl] || 0)} exposure</div>
@@ -66,7 +67,7 @@ export default function Compliance() {
         </div>
         <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>{w.method_note}</p>
 
-        <div className="section-title">Lifecycle compliance checks</div>
+        <Reveal><div className="section-title">Lifecycle compliance checks</div></Reveal>
         <div className="table-wrap">
           <table>
             <thead><tr>
@@ -75,11 +76,11 @@ export default function Compliance() {
             </tr></thead>
             <tbody>
               {c.checks.map((chk) => {
-                const a = AUTHORITY[chk.authority] || { c: "#93a1bd", t: chk.authority };
+                const a = AUTHORITY[chk.authority] || { c: "#9aa8c7", t: chk.authority };
                 return (
                   <tr key={chk.key}>
                     <td style={{ fontWeight: 600 }}>{chk.check}</td>
-                    <td><span className="badge" style={{ color: a.c, background: "#1c2c44" }}>{a.t}</span></td>
+                    <td><span className="badge" style={{ color: a.c, background: "#1a2338" }}>{a.t}</span></td>
                     <td><span style={{ color: SEV[chk.severity] }}>{chk.severity}</span></td>
                     <td className="num">{num(chk.works_affected)}</td>
                     <td className="muted" style={{ fontSize: 12 }}>{chk.meaning}</td>

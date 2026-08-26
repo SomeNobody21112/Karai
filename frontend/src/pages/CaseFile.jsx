@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Band, Loading, Topbar } from "../components/Bits.jsx";
+import { Reveal } from "../components/Reveal.jsx";
 
-const FAM_ICON = { amount: "₹", duration: "⏱", lifecycle: "⚑", behaviour: "📈" };
+const FAM_ICON = {
+  amount: "₹", duration: "⏱", lifecycle: "⚑",
+  behaviour: "📈", multivariate: "◈", duplication: "⧉",
+};
 
 function Meter({ value, color }) {
   return (
@@ -34,7 +38,7 @@ export default function CaseFile() {
       <div className="content">
         <Link to="/worklist" className="back">← Back to worklist</Link>
 
-        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-dim)" }}>
+        <div className="card" style={{ marginBottom: 18, fontSize: 13.5, color: "var(--text-2)" }}>
           <strong style={{ color: "var(--text)" }}>Plain summary:</strong> this work was put on the
           audit list because {c.n_signal_families} independent kinds of evidence agreed something is
           worth checking. About <strong>{rupees(c.exposure_rupees)}</strong> may be tied up if it does
@@ -57,7 +61,7 @@ export default function CaseFile() {
           </div>
         </div>
 
-        <div className="grid cols-4" style={{ marginTop: 20 }}>
+        <Reveal><div className="grid cols-4" style={{ marginTop: 20 }}>
           <div className="card stat">
             <div className="label">Recommended</div>
             <div className="value" style={{ fontSize: 24 }}>{rupees(id.recommended_amount)}</div>
@@ -70,7 +74,7 @@ export default function CaseFile() {
           <div className="card stat">
             <div className="label">Completion risk</div>
             <div className="value" style={{ fontSize: 24 }}>{Math.round(c.risk.completion_risk * 100)}%</div>
-            <Meter value={c.risk.completion_risk} color="#ffb648" />
+            <Meter value={c.risk.completion_risk} color="#ffb340" />
             <div className="foot">basis: {c.risk.basis}</div>
           </div>
           <div className="card stat">
@@ -80,11 +84,12 @@ export default function CaseFile() {
           </div>
         </div>
 
-        <div className="grid cols-2" style={{ marginTop: 16 }}>
+        </Reveal>
+        <Reveal delay={80}><div className="grid cols-2" style={{ marginTop: 16 }}>
           <div className="card">
             <h3>Evidence — why this was surfaced</h3>
             {c.evidence.map((e, i) => (
-              <div className="evidence-item" key={i}>
+              <div className="evidence-item" key={i} style={{ "--i": i }}>
                 <div className="evidence-icon">{FAM_ICON[e.family] || "•"}</div>
                 <div className="evidence-body">
                   <div className="s">{e.signal}<span className="fam-tag">{e.family}</span></div>
@@ -112,7 +117,7 @@ export default function CaseFile() {
               <div className="card" style={{ marginBottom: 16 }}>
                 <h3>Early warning — {c.early_warning.level}</h3>
                 <Meter value={c.early_warning.score}
-                  color={c.early_warning.level === "CRITICAL" ? "#ff5c6c" : "#ffb648"} />
+                  color={c.early_warning.level === "CRITICAL" ? "#ff5f7a" : "#ffb340"} />
                 <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
                   {c.early_warning.reason}
                 </p>
@@ -140,7 +145,7 @@ export default function CaseFile() {
                 <h3>Near-duplicate candidate</h3>
                 <dl className="kv">
                   <dt>Matched work</dt>
-                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#cfe0ff" }}>
+                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#bacdff" }}>
                     {c.duplicate.partner_work_ref}</Link></dd>
                   <dt>Similarity</dt><dd>{(c.duplicate.similarity * 100).toFixed(1)}%</dd>
                   <dt>Classification</dt><dd>{c.duplicate.classification.replace("_", " ")}</dd>
@@ -152,7 +157,7 @@ export default function CaseFile() {
               <div className="label">Recommended next step</div>
               <div className="text">{c.recommended_next_step}</div>
               {c.suggested_actions?.length > 0 && (
-                <ul style={{ margin: "12px 0 0 18px", fontSize: 13, color: "var(--text-dim)" }}>
+                <ul style={{ margin: "12px 0 0 18px", fontSize: 13, color: "var(--text-2)" }}>
                   {c.suggested_actions.map((a, i) => <li key={i}>{a}</li>)}
                 </ul>
               )}
@@ -160,6 +165,7 @@ export default function CaseFile() {
             </div>
           </div>
         </div>
+        </Reveal>
       </div>
     </>
   );

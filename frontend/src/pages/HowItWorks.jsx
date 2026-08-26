@@ -22,7 +22,7 @@ function metricCard(m, title, plain) {
       <h3>{title}</h3>
       <div style={{ fontWeight: 640, marginBottom: 6 }}>{m.model}</div>
       <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{plain}</p>
-      <p style={{ fontSize: 12, color: "var(--text-dim)" }}>{m.note}</p>
+      <p style={{ fontSize: 12, color: "var(--text-2)" }}>{m.note}</p>
     </div>
   );
 }
@@ -88,7 +88,7 @@ export default function HowItWorks() {
 
         <div className="card" style={{ marginTop: 20 }}>
           <h3>What we are careful NOT to claim</h3>
-          <ul style={{ fontSize: 13.5, color: "var(--text-dim)", paddingLeft: 18, lineHeight: 1.9 }}>
+          <ul style={{ fontSize: 13.5, color: "var(--text-2)", paddingLeft: 18, lineHeight: 1.9 }}>
             <li>We do <strong>not</strong> call anything fraud. There are no fraud records in this data to learn from, so any "fraud detector" would be made up.</li>
             <li>The "grouping quality" score (silhouette ≈ 0.05) is a <strong>separation measure, not accuracy</strong>. We say so plainly.</li>
             <li>"Exposure at risk" is money that <strong>could</strong> be tied up in works that may not finish — it is not proven loss or missing money.</li>
