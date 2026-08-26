@@ -5,8 +5,8 @@ import { Loading, Topbar } from "../components/Bits.jsx";
 import { CountUp, Reveal } from "../components/Reveal.jsx";
 
 const CLASS_COLOR = {
-  EXACT: "#c9556a", NEAR_EXACT: "#cf9440",
-  HIGH_SIMILARITY: "#5b8db8", POSSIBLE_REPEAT: "#9aa4b8",
+  EXACT: "#a8452a", NEAR_EXACT: "#9a6b1f",
+  HIGH_SIMILARITY: "#a8452a", POSSIBLE_REPEAT: "#5c554a",
 };
 
 const PAGE = 20;
@@ -76,19 +76,19 @@ export default function Duplicates() {
               {d.items.map((p, i) => (
                 <tr key={i}>
                   <td>
-                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#d4a24c" }}>
+                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#9a6b1f" }}>
                       {p.work_ref_a}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_a}</div>
                   </td>
                   <td>
-                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#d4a24c" }}>
+                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#9a6b1f" }}>
                       {p.work_ref_b}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_b}</div>
                   </td>
                   <td>
-                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#1a202b" }}>
+                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#f1ece1" }}>
                       {(p.similarity * 100).toFixed(1)}%
                     </span>
                     <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>

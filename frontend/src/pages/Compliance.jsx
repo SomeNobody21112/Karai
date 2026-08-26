@@ -4,11 +4,11 @@ import { Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
 
 const AUTHORITY = {
-  OFFICIAL_RULE: { c: "#c9556a", t: "Official rule" },
-  OBSERVED_BASELINE: { c: "#cf9440", t: "Observed baseline" },
-  STATISTICAL_OUTLIER: { c: "#5b8db8", t: "Statistical outlier" },
+  OFFICIAL_RULE: { c: "#a8452a", t: "Official rule" },
+  OBSERVED_BASELINE: { c: "#9a6b1f", t: "Observed baseline" },
+  STATISTICAL_OUTLIER: { c: "#a8452a", t: "Statistical outlier" },
 };
-const SEV = { HIGH: "#c9556a", MEDIUM: "#cf9440", LOW: "#5b8db8" };
+const SEV = { HIGH: "#a8452a", MEDIUM: "#9a6b1f", LOW: "#a8452a" };
 
 export default function Compliance() {
   const [c, setC] = useState(null);
@@ -44,7 +44,7 @@ export default function Compliance() {
                 </span>
                 <span>{(comp.value * 100).toFixed(1)}%</span>
               </div>
-              <div className="meter"><span style={{ width: `${comp.value * 100}%`, background: "#5b8db8" }} /></div>
+              <div className="meter"><span style={{ width: `${comp.value * 100}%`, background: "#a8452a" }} /></div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{comp.explanation}</div>
             </div>
           ))}
@@ -58,7 +58,7 @@ export default function Compliance() {
           {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((lvl) => (
             <div className="card stat" key={lvl}>
               <div className="label">{lvl}</div>
-              <div className="value" style={{ fontSize: 26, color: SEV[lvl] || "#9aa4b8" }}>
+              <div className="value" style={{ fontSize: 26, color: SEV[lvl] || "#5c554a" }}>
                 {num(w.levels[lvl] || 0)}
               </div>
               <div className="foot">{rupees(w.exposure_by_level?.[lvl] || 0)} exposure</div>
@@ -76,11 +76,11 @@ export default function Compliance() {
             </tr></thead>
             <tbody>
               {c.checks.map((chk) => {
-                const a = AUTHORITY[chk.authority] || { c: "#9aa4b8", t: chk.authority };
+                const a = AUTHORITY[chk.authority] || { c: "#5c554a", t: chk.authority };
                 return (
                   <tr key={chk.key}>
                     <td style={{ fontWeight: 600 }}>{chk.check}</td>
-                    <td><span className="badge" style={{ color: a.c, background: "#1a202b" }}>{a.t}</span></td>
+                    <td><span className="badge" style={{ color: a.c, background: "#f1ece1" }}>{a.t}</span></td>
                     <td><span style={{ color: SEV[chk.severity] }}>{chk.severity}</span></td>
                     <td className="num">{num(chk.works_affected)}</td>
                     <td className="muted" style={{ fontSize: 12 }}>{chk.meaning}</td>

@@ -9,11 +9,12 @@ import { CountUp, Reveal } from "../components/Reveal.jsx";
 import { usePointerSpotlight } from "../hooks.js";
 import { useRole } from "../RoleContext.jsx";
 import Insight from "../components/Insight.jsx";
+import { useI18n } from "../I18nContext.jsx";
 
-const BAND_COLOR = { HIGH: "#c9556a", MEDIUM: "#cf9440", LOW: "#5b8db8", NONE: "#232a37" };
+const BAND_COLOR = { HIGH: "#a8452a", MEDIUM: "#9a6b1f", LOW: "#a8452a", NONE: "#ddd5c6" };
 const TIP = {
-  background: "#141922", border: "1px solid #232f4a", borderRadius: 3,
-  fontSize: 12, boxShadow: "0 12px 40px rgba(0,0,0,.5)",
+  background: "#ffffff", border: "1px solid #ddd5c6", borderRadius: 3,
+  fontSize: 12, boxShadow: "0 2px 10px rgba(60,48,30,.12)",
 };
 
 function Stat({ label, value, foot, accent, danger, delay = 0 }) {
@@ -33,6 +34,7 @@ export default function Overview() {
   const [stats, setStats] = useState(null);
   const nav = useNavigate();
   const { params, role, scope } = useRole();
+  const { t } = useI18n();
 
   useEffect(() => {
     setStats(null);
@@ -40,7 +42,7 @@ export default function Overview() {
   }, [role, scope]);
 
   if (!stats)
-    return (<><Topbar title="National Overview" /><div className="content"><Loading /></div></>);
+    return (<><Topbar title={t("overview.title", "National Overview")} /><div className="content"><Loading /></div></>);
 
   const n = stats.national;
   const bands = ["HIGH", "MEDIUM", "LOW", "NONE"].map((b) => ({ band: b, works: n.bands[b] || 0 }));
@@ -53,7 +55,7 @@ export default function Overview() {
   return (
     <>
       <Topbar
-        title="National Overview"
+        title={t("overview.title", "National Overview")}
         sub={scope ? `Scoped to ${scope}` : "MPLADS / eSAKSHI · 17th & 18th Lok Sabha · Rajya Sabha"}
         right={<span className="pill live">Snapshot 2026-05-26</span>}
       />
@@ -63,13 +65,13 @@ export default function Overview() {
 
         <div className="grid cols-4">
           <Stat
-            label="Works monitored"
+            label={t("overview.worksMonitored", "Works monitored")}
             value={<CountUp end={n.total_works} />}
-            foot={`${num(n.completed)} completed · ${num(n.open)} open`}
+            foot={`${num(n.completed)} ${t("overview.completed", "completed")} · ${num(n.open)} ${t("overview.open", "open")}`}
           />
           <Stat
             delay={80}
-            label="Total recommended"
+            label={t("overview.totalRecommended", "Total recommended")}
             value={<CountUp end={n.total_recommended_rupees / 1e7}
               format={(v) => `₹${v.toLocaleString("en-IN")} Cr`} />}
             foot={`${n.states} states · ${num(n.implementing_agencies)} agencies`}
@@ -77,14 +79,14 @@ export default function Overview() {
           <Stat
             delay={160}
             accent
-            label="₹ exposure at risk"
+            label={t("overview.exposure", "Exposure at risk")}
             value={<CountUp end={n.total_exposure_rupees / 1e7}
               format={(v) => `₹${v.toLocaleString("en-IN")} Cr`} />}
-            foot="Completion-risk weighted · not loss, not spend"
+            foot={t("overview.exposureFoot", "Completion-risk weighted, not loss, not spend")}
           />
           <Stat
             delay={240}
-            label="Investigation leads"
+            label={t("overview.leads", "Investigation leads")}
             value={<CountUp end={n.surfaced_leads} />}
             foot={`${num(n.bands.HIGH || 0)} high-confidence (3+ signal families)`}
           />
@@ -93,20 +95,20 @@ export default function Overview() {
         <div className="grid cols-2" style={{ marginTop: 16 }}>
           <Reveal delay={60}>
             <div className="card">
-              <h3>₹ Exposure by state (top 10, ₹ crore)</h3>
+              <h3>{t("overview.byState", "Exposure by state (top 10, crore)")}</h3>
               <ResponsiveContainer width="100%" height={310}>
                 <BarChart data={topStates} layout="vertical" margin={{ left: 6, right: 22 }}>
                   <defs>
                     <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#5b8db8" />
-                      <stop offset="100%" stopColor="#d4a24c" />
+                      <stop offset="0%" stopColor="#a8452a" />
+                      <stop offset="100%" stopColor="#9a6b1f" />
                     </linearGradient>
                   </defs>
-                  <XAxis type="number" stroke="#626c80" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="state" stroke="#9aa4b8" fontSize={11}
+                  <XAxis type="number" stroke="#8a8175" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="state" stroke="#5c554a" fontSize={11}
                     width={94} tickLine={false} axisLine={false} />
                   <Tooltip
-                    contentStyle={TIP} cursor={{ fill: "rgba(255,255,255,.04)" }}
+                    contentStyle={TIP} cursor={{ fill: "rgba(168,69,42,.06)" }}
                     formatter={(v) => [`₹${v} Cr`, "Exposure"]}
                     labelFormatter={(_, p) => p?.[0]?.payload?.full} />
                   <Bar dataKey="exposure" radius={[0, 2, 2, 0]} fill="url(#barGrad)"
@@ -118,29 +120,29 @@ export default function Overview() {
 
           <Reveal delay={140}>
             <div className="card">
-              <h3>Confidence bands</h3>
+              <h3>{t("overview.bands", "Confidence bands")}</h3>
               <ResponsiveContainer width="100%" height={310}>
                 <BarChart data={bands} margin={{ left: 0, right: 10 }}>
-                  <XAxis dataKey="band" stroke="#9aa4b8" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#626c80" fontSize={11} tickLine={false} axisLine={false}
+                  <XAxis dataKey="band" stroke="#5c554a" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#8a8175" fontSize={11} tickLine={false} axisLine={false}
                     tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)} />
-                  <Tooltip contentStyle={TIP} cursor={{ fill: "rgba(255,255,255,.04)" }}
+                  <Tooltip contentStyle={TIP} cursor={{ fill: "rgba(168,69,42,.06)" }}
                     formatter={(v) => [num(v), "Works"]} />
                   <Bar dataKey="works" radius={[2, 2, 0, 0]} animationDuration={1100}>
-                    {bands.map((b) => <Cell key={b.band} fill={BAND_COLOR[b.band] || "#232a37"} />)}
+                    {bands.map((b) => <Cell key={b.band} fill={BAND_COLOR[b.band] || "#ddd5c6"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <div className="legend">
-                <span><i className="dot" style={{ background: "#c9556a" }} /> HIGH · 3+ families</span>
-                <span><i className="dot" style={{ background: "#cf9440" }} /> MEDIUM · 2</span>
-                <span><i className="dot" style={{ background: "#5b8db8" }} /> LOW · 1</span>
+                <span><i className="dot" style={{ background: "#a8452a" }} /> HIGH · 3+ families</span>
+                <span><i className="dot" style={{ background: "#9a6b1f" }} /> MEDIUM · 2</span>
+                <span><i className="dot" style={{ background: "#a8452a" }} /> LOW · 1</span>
               </div>
             </div>
           </Reveal>
         </div>
 
-        <Reveal><div className="section-title">Learned work archetypes (top 20 of 50)</div></Reveal>
+        <Reveal><div className="section-title">{t("overview.archetypes", "Learned work archetypes")}</div></Reveal>
         <Reveal delay={70}>
           <div className="table-wrap">
             <table>

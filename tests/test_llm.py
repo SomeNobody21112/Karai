@@ -215,3 +215,44 @@ def test_no_chat_answer_can_assert_wrongdoing():
                      "what about duplicates?", "what models did you train?"]:
         text = chat.answer_offline(question)["text"]
         assert llm._scrub(text) == text.strip(), f"banned language in: {question}"
+
+
+# ------------------------------------------------------- static translations
+
+
+def test_every_offered_language_has_a_complete_bundle():
+    """A half-translated language in the picker is worse than an absent one."""
+    from mplads.api import translations
+
+    for code in translations.BUNDLES:
+        assert translations.coverage(code) == 1.0, f"{code} is incomplete"
+
+
+def test_translations_need_no_api_key():
+    """The interface must render in any language with no network call at all."""
+    from mplads.api import translations
+
+    bundle = translations.bundle("ta")
+    assert bundle["nav.worklist"] != UI["nav.worklist"], "Tamil fell back to English"
+    assert len(bundle) == len(UI)
+
+
+def test_every_bundle_covers_exactly_the_ui_keys():
+    from mplads.api import translations
+
+    for code in translations.BUNDLES:
+        assert set(translations.bundle(code)) == set(UI), f"{code} key drift"
+
+
+def test_an_unknown_language_falls_back_to_english():
+    from mplads.api import translations
+
+    assert translations.bundle("zz") == dict(UI)
+
+
+def test_native_names_are_in_their_own_script():
+    from mplads.api import translations
+
+    assert translations.BUNDLES["hi"][1] == "हिन्दी"
+    assert translations.BUNDLES["ta"][1] == "தமிழ்"
+    assert all(native for _, native, _ in translations.BUNDLES.values())

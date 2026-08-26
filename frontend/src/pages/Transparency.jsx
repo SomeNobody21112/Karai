@@ -4,9 +4,9 @@ import { Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
 
 const TYPE = {
-  "Direct measurement": { c: "#4c9e78", t: "Measured" },
-  "Model-derived": { c: "#5b8db8", t: "Derived" },
-  Unavailable: { c: "#c9556a", t: "Unavailable" },
+  "Direct measurement": { c: "#2f5d3f", t: "Measured" },
+  "Model-derived": { c: "#a8452a", t: "Derived" },
+  Unavailable: { c: "#a8452a", t: "Unavailable" },
 };
 
 export default function Transparency() {
@@ -31,17 +31,17 @@ export default function Transparency() {
         <Reveal><div className="grid cols-3">
           <div className="card stat">
             <div className="label">Measured directly</div>
-            <div className="value" style={{ fontSize: 28, color: "#4c9e78" }}>{d.totals.available_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#2f5d3f" }}>{d.totals.available_metrics}</div>
             <div className="foot">straight from government records</div>
           </div>
           <div className="card stat">
             <div className="label">Model-derived</div>
-            <div className="value" style={{ fontSize: 28, color: "#5b8db8" }}>{d.totals.derived_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#a8452a" }}>{d.totals.derived_metrics}</div>
             <div className="foot">computed, with stated confidence</div>
           </div>
           <div className="card stat">
             <div className="label">Unavailable</div>
-            <div className="value" style={{ fontSize: 28, color: "#c9556a" }}>{d.totals.unavailable_metrics}</div>
+            <div className="value" style={{ fontSize: 28, color: "#a8452a" }}>{d.totals.unavailable_metrics}</div>
             <div className="foot">absent from public data — not faked</div>
           </div>
         </div>
@@ -58,7 +58,7 @@ export default function Transparency() {
                     <tr key={m.metric}>
                       <td style={{ fontWeight: 600 }}>{m.metric}</td>
                       <td className="muted" style={{ fontSize: 12 }}>{m.source}</td>
-                      <td><span className="badge" style={{ color: TYPE[type].c, background: "#1a202b" }}>{m.confidence}</span></td>
+                      <td><span className="badge" style={{ color: TYPE[type].c, background: "#f1ece1" }}>{m.confidence}</span></td>
                       <td className="muted" style={{ fontSize: 12 }}>{m.note}</td>
                     </tr>
                   ))}
@@ -76,7 +76,7 @@ export default function Transparency() {
                 <span>{f.field}</span><span>{f.present_pct}%</span>
               </div>
               <div className="meter">
-                <span style={{ width: `${f.present_pct}%`, background: f.present_pct > 95 ? "#4c9e78" : "#cf9440" }} />
+                <span style={{ width: `${f.present_pct}%`, background: f.present_pct > 95 ? "#2f5d3f" : "#9a6b1f" }} />
               </div>
             </div>
           ))}

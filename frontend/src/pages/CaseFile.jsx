@@ -77,7 +77,7 @@ export default function CaseFile() {
           <div className="card stat">
             <div className="label">Completion risk</div>
             <div className="value" style={{ fontSize: 24 }}>{Math.round(c.risk.completion_risk * 100)}%</div>
-            <Meter value={c.risk.completion_risk} color="#cf9440" />
+            <Meter value={c.risk.completion_risk} color="#9a6b1f" />
             <div className="foot">basis: {c.risk.basis}</div>
           </div>
           <div className="card stat">
@@ -120,7 +120,7 @@ export default function CaseFile() {
               <div className="card" style={{ marginBottom: 16 }}>
                 <h3>Early warning — {c.early_warning.level}</h3>
                 <Meter value={c.early_warning.score}
-                  color={c.early_warning.level === "CRITICAL" ? "#c9556a" : "#cf9440"} />
+                  color={c.early_warning.level === "CRITICAL" ? "#a8452a" : "#9a6b1f"} />
                 <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
                   {c.early_warning.reason}
                 </p>
@@ -148,7 +148,7 @@ export default function CaseFile() {
                 <h3>Near-duplicate candidate</h3>
                 <dl className="kv">
                   <dt>Matched work</dt>
-                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#d4a24c" }}>
+                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#9a6b1f" }}>
                     {c.duplicate.partner_work_ref}</Link></dd>
                   <dt>Similarity</dt><dd>{(c.duplicate.similarity * 100).toFixed(1)}%</dd>
                   <dt>Classification</dt><dd>{c.duplicate.classification.replace("_", " ")}</dd>

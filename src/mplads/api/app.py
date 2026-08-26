@@ -23,6 +23,7 @@ from mplads import chat as chatbot
 from mplads import config, llm
 from mplads.api import auth
 from mplads.api.strings import UI
+from mplads.api import translations
 from mplads.api.audit import AuditLog
 from mplads.api.auth import Principal, current_principal
 
@@ -266,22 +267,27 @@ def models() -> dict:
 
 @app.get("/api/languages")
 def languages() -> dict:
-    """Supported interface languages, and whether live translation is configured."""
+    """Interface languages. Every one listed ships a complete, static bundle."""
     return {
-        "languages": llm.LANGUAGES,
+        "languages": {code: name for code, (name, _, _) in translations.BUNDLES.items()},
+        "native": {code: native for code, (_, native, _) in translations.BUNDLES.items()},
         "llm_available": llm.available(),
-        "note": "Interface strings are translated once and cached. Without an API key the "
-                "interface stays in English and briefings fall back to a deterministic "
-                "template built from the same numbers.",
+        "note": "Interface translations are shipped with the application and need no "
+                "network call. The language model is used only for written briefings, "
+                "which fall back to a deterministic template when unavailable.",
     }
 
 
 @app.get("/api/strings")
 def strings(lang: str = Query("en")) -> dict:
-    """The whole UI string bundle in one language. Cached on disk after first use."""
-    if lang not in llm.LANGUAGES:
+    """The complete UI bundle for one language. Static — no API call, no cache miss."""
+    if lang not in translations.BUNDLES:
         raise HTTPException(400, f"unsupported language: {lang}")
-    return {"lang": lang, "strings": llm.translate_bundle(UI, lang)}
+    return {
+        "lang": lang,
+        "coverage": translations.coverage(lang),
+        "strings": translations.bundle(lang),
+    }
 
 
 @app.get("/api/insight/portfolio")

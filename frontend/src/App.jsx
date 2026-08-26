@@ -14,29 +14,31 @@ import { RoleProvider, RoleSwitcher, useRole } from "./RoleContext.jsx";
 import { useScrollProgress } from "./hooks.js";
 import { LanguageSwitcher } from "./I18nContext.jsx";
 import Chat from "./components/Chat.jsx";
+import Logo from "./components/Logo.jsx";
+import { useI18n } from "./I18nContext.jsx";
 
 const NAV = [
   {
-    label: "Monitor",
+    key: "nav.monitor", label: "Monitor",
     items: [
-      { to: "/overview", ic: "◫", label: "Overview" },
-      { to: "/worklist", ic: "☰", label: "Investigation Queue" },
+      { to: "/overview", ic: "▤", key: "nav.overview", label: "Overview" },
+      { to: "/worklist", ic: "▦", key: "nav.worklist", label: "Investigation Queue" },
     ],
   },
   {
-    label: "Intelligence",
+    key: "nav.intelligence", label: "Intelligence",
     items: [
-      { to: "/trends", ic: "📈", label: "Temporal" },
-      { to: "/duplicates", ic: "⧉", label: "Near-Duplicates" },
-      { to: "/compliance", ic: "⚖", label: "Compliance" },
-      { to: "/archetypes", ic: "🧩", label: "Work Archetypes" },
+      { to: "/trends", ic: "◪", key: "nav.trends", label: "Temporal" },
+      { to: "/duplicates", ic: "⧉", key: "nav.duplicates", label: "Near-Duplicates" },
+      { to: "/compliance", ic: "§", key: "nav.compliance", label: "Compliance" },
+      { to: "/archetypes", ic: "◈", key: "nav.archetypes", label: "Work Archetypes" },
     ],
   },
   {
-    label: "Trust",
+    key: "nav.trust", label: "Trust",
     items: [
-      { to: "/transparency", ic: "🔒", label: "Data Transparency" },
-      { to: "/how", ic: "💡", label: "How it works" },
+      { to: "/transparency", ic: "◉", key: "nav.transparency", label: "Data Transparency" },
+      { to: "/how", ic: "?", key: "nav.how", label: "How it works" },
     ],
   },
 ];
@@ -44,22 +46,23 @@ const NAV = [
 function Sidebar() {
   const link = ({ isActive }) => "nav-link" + (isActive ? " active" : "");
   const { role, scope, meta } = useRole();
+  const { t } = useI18n();
   return (
     <aside className="sidebar">
       <NavLink to="/" className="brand">
-        <div className="brand-mark">M</div>
+        <Logo size={38} className="brand-logo" />
         <div>
-          <div className="brand-name">MPLADS Intel</div>
-          <div className="brand-sub">Forensic Monitoring</div>
+          <div className="brand-name">MPLADS Intelligence</div>
+          <div className="brand-sub">{t("shell.brandSub", "Forensic Monitoring")}</div>
         </div>
       </NavLink>
 
       {NAV.map((group) => (
-        <div key={group.label}>
-          <div className="nav-group-label">{group.label}</div>
+        <div key={group.key}>
+          <div className="nav-group-label">{t(group.key, group.label)}</div>
           {group.items.map((item) => (
             <NavLink key={item.to} to={item.to} className={link}>
-              <span className="ic">{item.ic}</span> {item.label}
+              <span className="ic">{item.ic}</span> {t(item.key, item.label)}
             </NavLink>
           ))}
         </div>
@@ -68,15 +71,16 @@ function Sidebar() {
       <div className="sidebar-foot">
         {meta && (
           <div style={{ marginBottom: 12 }}>
-            Viewing as{" "}
+            {t("shell.viewingAs", "Viewing as")}{" "}
             <b style={{ color: "var(--text-2)" }}>{meta.roles[role]?.label}</b>
             {scope && <> · {scope}</>}
           </div>
         )}
-        Learn → Compare → Predict → Explain → Prioritise
+        {t("shell.chain", "Learn, Compare, Predict, Explain, Prioritise")}
         <br />
         <br />
-        Investigation leads, not fraud verdicts. A human decides every action.
+        {t("shell.leadsNotVerdicts",
+           "Investigation leads, not fraud verdicts. A human decides every action.")}
       </div>
     </aside>
   );
@@ -93,6 +97,7 @@ function ScrollReset() {
 
 function Shell() {
   const { pathname } = useLocation();
+  const { t } = useI18n();
   const progress = useScrollProgress();
   const isLanding = pathname === "/";
 
@@ -109,13 +114,15 @@ function Shell() {
           <Sidebar />
           <div className="main">
             <div className="role-bar">
-              <span className="muted" style={{ fontSize: 12 }}>Stakeholder view</span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {t("shell.stakeholder", "Stakeholder view")}
+              </span>
               <RoleSwitcher />
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
                 <LanguageSwitcher />
               </div>
               <span className="muted" style={{ fontSize: 11 }}>
-                Role simulation — no authentication in this prototype
+                {t("shell.roleSim", "Role simulation — no authentication in this prototype")}
               </span>
             </div>
             <Routes>
