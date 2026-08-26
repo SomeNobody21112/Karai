@@ -60,7 +60,7 @@ export default function Archetypes() {
                       {num(x.n_works)} works · {x.states} states · {num(x.agencies)} agencies
                       {x.top_state && <> · mostly {x.top_state}</>}
                     </div>
-                    <Bar value={x.n_works / maxWorks} color="#6c8cff" />
+                    <Bar value={x.n_works / maxWorks} color="#5b8db8" />
                   </div>
 
                   <div className="arch-metrics">
@@ -80,7 +80,7 @@ export default function Archetypes() {
                     </div>
                     <div className="arch-metric">
                       <span className="m-label">Flagged</span>
-                      <span className="m-value" style={{ color: x.lead_rate > 0.25 ? "#ffb340" : undefined }}>
+                      <span className="m-value" style={{ color: x.lead_rate > 0.25 ? "#cf9440" : undefined }}>
                         {(x.lead_rate * 100).toFixed(0)}%
                       </span>
                     </div>

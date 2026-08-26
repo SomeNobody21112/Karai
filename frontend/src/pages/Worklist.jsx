@@ -89,7 +89,7 @@ export default function Worklist() {
                       <td><Band value={r.band} /></td>
                       <td className="num">{rupees(r.recommended_amount)}</td>
                       <td className="num">{rupees(r.exposure_rupees)}</td>
-                      <td className="num" style={{ fontWeight: 700, color: "#bacdff" }}>
+                      <td className="num" style={{ fontWeight: 700, color: "#d4a24c" }}>
                         {rupees(r.audit_roi)}
                       </td>
                     </tr>

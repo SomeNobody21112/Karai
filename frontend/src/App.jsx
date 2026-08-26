@@ -12,6 +12,7 @@ import Transparency from "./pages/Transparency.jsx";
 import Archetypes from "./pages/Archetypes.jsx";
 import { RoleProvider, RoleSwitcher, useRole } from "./RoleContext.jsx";
 import { useScrollProgress } from "./hooks.js";
+import { LanguageSwitcher } from "./I18nContext.jsx";
 
 const NAV = [
   {
@@ -109,7 +110,10 @@ function Shell() {
             <div className="role-bar">
               <span className="muted" style={{ fontSize: 12 }}>Stakeholder view</span>
               <RoleSwitcher />
-              <span className="muted" style={{ fontSize: 11, marginLeft: "auto" }}>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+                <LanguageSwitcher />
+              </div>
+              <span className="muted" style={{ fontSize: 11 }}>
                 Role simulation — no authentication in this prototype
               </span>
             </div>

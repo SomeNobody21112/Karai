@@ -79,7 +79,7 @@ export default function Landing() {
 
       {/* ---------------------------------------------------------- hero */}
       <header className="hero">
-        <div className="hero-aurora"><i /><i /><i /></div>
+        <div className="hero-geo"><i /><i /><i /></div>
         <div className="hero-grid" />
         <div className="hero-inner">
           <div className="eyebrow">

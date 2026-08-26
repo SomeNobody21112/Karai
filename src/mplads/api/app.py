@@ -18,8 +18,9 @@ import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from mplads import config
+from mplads import config, llm
 from mplads.api import auth
+from mplads.api.strings import UI
 from mplads.api.audit import AuditLog
 from mplads.api.auth import Principal, current_principal
 
@@ -256,6 +257,56 @@ def states() -> list[dict]:
 @app.get("/api/models")
 def models() -> dict:
     return store().metrics
+
+
+# ------------------------------------------------------- language & AI briefings
+
+
+@app.get("/api/languages")
+def languages() -> dict:
+    """Supported interface languages, and whether live translation is configured."""
+    return {
+        "languages": llm.LANGUAGES,
+        "llm_available": llm.available(),
+        "note": "Interface strings are translated once and cached. Without an API key the "
+                "interface stays in English and briefings fall back to a deterministic "
+                "template built from the same numbers.",
+    }
+
+
+@app.get("/api/strings")
+def strings(lang: str = Query("en")) -> dict:
+    """The whole UI string bundle in one language. Cached on disk after first use."""
+    if lang not in llm.LANGUAGES:
+        raise HTTPException(400, f"unsupported language: {lang}")
+    return {"lang": lang, "strings": llm.translate_bundle(UI, lang)}
+
+
+@app.get("/api/insight/portfolio")
+def portfolio_insight(lang: str = Query("en"), role: str | None = None,
+                      scope: str | None = None) -> dict:
+    """A written brief over the national (or scoped) picture."""
+    return llm.portfolio_insight(stats(role=role, scope=scope), language=lang)
+
+
+@app.get("/api/insight/case/{work_ref}")
+def case_insight(work_ref: str, lang: str = Query("en"),
+                 principal: Principal = Depends(current_principal)) -> dict:
+    """A written brief for one case file, in the requested language."""
+    found = store().cases_by_ref.get(work_ref)
+    if not found:
+        raise HTTPException(status_code=404, detail="case file not found")
+    identity = found["identity"]
+    auth.require_scope(
+        principal,
+        {
+            "state": identity.get("state"),
+            "implementing_agency": identity.get("implementing_agency"),
+            "constituency": identity.get("constituency"),
+        },
+        f"case file {work_ref}",
+    )
+    return llm.case_insight(found, language=lang)
 
 
 # ----------------------------------------------------------- intelligence endpoints

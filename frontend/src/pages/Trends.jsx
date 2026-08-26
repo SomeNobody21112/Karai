@@ -5,20 +5,20 @@ import { Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
 
 const STATE_STYLE = {
-  NORMAL: { c: "#6c8cff", t: "Normal" },
-  EMERGING: { c: "#35d9a6", t: "Emerging" },
-  GROWING: { c: "#35d9a6", t: "Growing" },
-  STABLE: { c: "#6c8cff", t: "Stable" },
-  DECLINING: { c: "#ffb340", t: "Declining" },
-  SUDDEN_CHANGE: { c: "#ff5f7a", t: "Sudden change" },
-  PERSISTENT_CHANGE: { c: "#ffb340", t: "Persistent change" },
-  INSUFFICIENT_HISTORY: { c: "#5f6d8d", t: "Insufficient history" },
+  NORMAL: { c: "#5b8db8", t: "Normal" },
+  EMERGING: { c: "#4c9e78", t: "Emerging" },
+  GROWING: { c: "#4c9e78", t: "Growing" },
+  STABLE: { c: "#5b8db8", t: "Stable" },
+  DECLINING: { c: "#cf9440", t: "Declining" },
+  SUDDEN_CHANGE: { c: "#c9556a", t: "Sudden change" },
+  PERSISTENT_CHANGE: { c: "#cf9440", t: "Persistent change" },
+  INSUFFICIENT_HISTORY: { c: "#626c80", t: "Insufficient history" },
 };
 
 function Tag({ value }) {
-  const s = STATE_STYLE[value] || { c: "#5f6d8d", t: value };
+  const s = STATE_STYLE[value] || { c: "#626c80", t: value };
   return (
-    <span className="badge" style={{ color: s.c, background: "#1a2338" }}>{s.t}</span>
+    <span className="badge" style={{ color: s.c, background: "#1a202b" }}>{s.t}</span>
   );
 }
 
@@ -51,11 +51,11 @@ export default function Trends() {
             <h3>National monthly work volume</h3>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={series}>
-                <CartesianGrid stroke="#1b2439" vertical={false} />
-                <XAxis dataKey="period" stroke="#5f6d8d" fontSize={10} minTickGap={30} />
-                <YAxis stroke="#5f6d8d" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#141b2d", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="works" stroke="#6c8cff" strokeWidth={2} dot={false} />
+                <CartesianGrid stroke="#1a202b" vertical={false} />
+                <XAxis dataKey="period" stroke="#626c80" fontSize={10} minTickGap={30} />
+                <YAxis stroke="#626c80" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#141922", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="works" stroke="#5b8db8" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
             <div style={{ marginTop: 10 }}>
@@ -70,11 +70,11 @@ export default function Trends() {
             <h3>National median recommended amount (₹ thousand)</h3>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={series}>
-                <CartesianGrid stroke="#1b2439" vertical={false} />
-                <XAxis dataKey="period" stroke="#5f6d8d" fontSize={10} minTickGap={30} />
-                <YAxis stroke="#5f6d8d" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#141b2d", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="median" stroke="#35d9a6" strokeWidth={2} dot={false} />
+                <CartesianGrid stroke="#1a202b" vertical={false} />
+                <XAxis dataKey="period" stroke="#626c80" fontSize={10} minTickGap={30} />
+                <YAxis stroke="#626c80" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#141922", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="median" stroke="#4c9e78" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
             <div style={{ marginTop: 10 }}>
@@ -100,7 +100,7 @@ export default function Trends() {
                   <td>{a.label}</td>
                   <td><Tag value={a.classification} /></td>
                   <td className="num">{num(a.recent_works)}</td>
-                  <td className="num" style={{ color: a.delta >= 0 ? "#35d9a6" : "#ffb340" }}>
+                  <td className="num" style={{ color: a.delta >= 0 ? "#4c9e78" : "#cf9440" }}>
                     {a.delta >= 0 ? "+" : ""}{(a.delta * 100).toFixed(2)} pp
                   </td>
                 </tr>

@@ -16,6 +16,16 @@ export const api = {
   states: () => get("/api/states"),
   models: () => get("/api/models"),
   roles: () => get("/api/roles"),
+  languages: () => get("/api/languages"),
+  strings: (lang) => get(`/api/strings?lang=${encodeURIComponent(lang)}`),
+  portfolioInsight: (p = {}) => {
+    const q = new URLSearchParams(
+      Object.entries(p).filter(([, v]) => v !== "" && v != null)
+    ).toString();
+    return get(`/api/insight/portfolio?${q}`);
+  },
+  caseInsight: (ref, lang = "en") =>
+    get(`/api/insight/case/${encodeURIComponent(ref)}?lang=${encodeURIComponent(lang)}`),
   temporal: () => get("/api/temporal"),
   transparency: () => get("/api/transparency"),
   compliance: () => get("/api/compliance"),
