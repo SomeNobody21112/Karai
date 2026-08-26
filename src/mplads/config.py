@@ -133,6 +133,27 @@ def ensure_dirs() -> None:
 
 import os as _os
 
+
+def _load_dotenv() -> None:
+    """Read REPO_ROOT/.env into the environment if present.
+
+    Kept dependency-free and non-overriding: a variable already exported in the shell
+    always wins, so `.env` is a convenience for local runs, never a way to silently
+    override a deliberately-set production value. The file is gitignored.
+    """
+    path = REPO_ROOT / ".env"
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        _os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+_load_dotenv()
+
 JWT_SECRET: str = _os.environ.get("MPLADS_JWT_SECRET", "dev-only-not-a-production-secret")
 REQUIRE_AUTH: bool = _os.environ.get("MPLADS_REQUIRE_AUTH", "0") == "1"
 

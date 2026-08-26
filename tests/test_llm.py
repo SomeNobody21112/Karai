@@ -122,3 +122,96 @@ def test_every_supported_language_is_named():
 def test_the_ui_bundle_is_flat_strings_only():
     assert all(isinstance(k, str) and isinstance(v, str) for k, v in UI.items())
     assert len(UI) > 40
+
+
+# ------------------------------------------------------------------- the chatbot
+
+
+def test_every_chat_tool_returns_valid_json(a_case):
+    from mplads import chat
+
+    args = {
+        "t_case_detail": {"work_ref": a_case["work_ref"]},
+        "t_search_works": {"query": "road"},
+    }
+    for name, fn in chat.TOOL_FUNCS.items():
+        result = fn(**args.get(name, {}))
+        json.loads(result)  # raises if the tool returned something unparseable
+        assert result, f"{name} returned nothing"
+
+
+def test_every_chat_tool_is_read_only():
+    """No tool may write, score, rank, or change a threshold."""
+    import inspect
+
+    from mplads import chat
+
+    banned = ("write_text", "to_parquet", "to_csv", "open(", "os.remove", "setattr")
+    for name, fn in chat.TOOL_FUNCS.items():
+        source = inspect.getsource(fn)
+        for token in banned:
+            assert token not in source, f"{name} appears to mutate state via {token}"
+
+
+def test_every_chat_tool_is_documented_for_the_model():
+    from mplads import chat
+
+    for name, fn in chat.TOOL_FUNCS.items():
+        assert (fn.__doc__ or "").strip(), f"{name} has no docstring — the model needs one"
+
+
+def test_the_chat_system_prompt_forbids_inventing_figures():
+    from mplads import chat
+
+    lowered = chat.SYSTEM.lower()
+    assert "never state a figure that did not come from a tool" in lowered
+    assert "investigation leads" in lowered
+    assert "never say anyone acted improperly" in lowered or "wrongdoing" in lowered
+
+
+def test_offline_chat_answers_from_real_data():
+    from mplads import chat
+
+    answer = chat.answer_offline("how many leads are there?")
+    assert "37,705" in answer["text"] or "leads" in answer["text"]
+    assert answer["source"] == "offline"
+    assert answer["tools_used"]
+
+
+def test_offline_chat_resolves_a_work_reference(a_case):
+    from mplads import chat
+
+    ref = a_case["work_ref"]
+    answer = chat.answer_offline(f"tell me about {ref}")
+    assert ref in answer["text"]
+    assert "t_case_detail" in answer["tools_used"]
+
+
+def test_offline_chat_corrects_the_exposure_misconception():
+    from mplads import chat
+
+    answer = chat.answer_offline("how much money was lost to exposure?")
+    assert "not loss" in answer["text"].lower()
+
+
+def test_offline_chat_admits_what_the_data_cannot_answer():
+    from mplads import chat
+
+    answer = chat.answer_offline("can you detect cost overruns?")
+    assert "does not contain" in answer["text"]
+
+
+def test_offline_chat_says_so_when_it_cannot_help():
+    from mplads import chat
+
+    answer = chat.answer_offline("what is the capital of France")
+    assert "offline mode" in answer["text"]
+
+
+def test_no_chat_answer_can_assert_wrongdoing():
+    from mplads import chat
+
+    for question in ["how many leads are there?", "show me the top leads",
+                     "what about duplicates?", "what models did you train?"]:
+        text = chat.answer_offline(question)["text"]
+        assert llm._scrub(text) == text.strip(), f"banned language in: {question}"

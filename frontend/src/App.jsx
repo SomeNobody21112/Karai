@@ -13,6 +13,7 @@ import Archetypes from "./pages/Archetypes.jsx";
 import { RoleProvider, RoleSwitcher, useRole } from "./RoleContext.jsx";
 import { useScrollProgress } from "./hooks.js";
 import { LanguageSwitcher } from "./I18nContext.jsx";
+import Chat from "./components/Chat.jsx";
 
 const NAV = [
   {
@@ -128,6 +129,7 @@ function Shell() {
               <Route path="/how" element={<HowItWorks />} />
               <Route path="/case/:ref" element={<CaseFile />} />
             </Routes>
+            <Chat />
           </div>
         </div>
       )}

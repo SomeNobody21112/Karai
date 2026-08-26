@@ -17,7 +17,9 @@ from pathlib import Path
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
+from mplads import chat as chatbot
 from mplads import config, llm
 from mplads.api import auth
 from mplads.api.strings import UI
@@ -287,6 +289,46 @@ def portfolio_insight(lang: str = Query("en"), role: str | None = None,
                       scope: str | None = None) -> dict:
     """A written brief over the national (or scoped) picture."""
     return llm.portfolio_insight(stats(role=role, scope=scope), language=lang)
+
+
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    question: str
+    history: list[ChatTurn] = []
+    lang: str = "en"
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest) -> dict:
+    """Ask the assistant. It answers only from tool calls against the real artifacts."""
+    if not req.question.strip():
+        raise HTTPException(400, "question is required")
+    history = [{"role": t.role, "content": t.content} for t in req.history][-12:]
+    return chatbot.answer(req.question.strip(), history=history, language=req.lang)
+
+
+@app.get("/api/chat/capabilities")
+def chat_capabilities() -> dict:
+    """What the assistant can look up, and whether it is running live or offline."""
+    return {
+        "live": llm.available(),
+        "tools": [
+            {"name": name, "does": (fn.__doc__ or "").strip().splitlines()[0]}
+            for name, fn in chatbot.TOOL_FUNCS.items()
+        ],
+        "suggestions": [
+            "How many investigation leads are there?",
+            "Show me the top leads",
+            "What does exposure at risk mean?",
+            "Tell me about MP3018356-W86316",
+            "Can you detect cost overruns?",
+            "What models did you train?",
+        ],
+    }
 
 
 @app.get("/api/insight/case/{work_ref}")

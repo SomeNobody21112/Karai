@@ -17,6 +17,16 @@ export const api = {
   models: () => get("/api/models"),
   roles: () => get("/api/roles"),
   languages: () => get("/api/languages"),
+  chatCapabilities: () => get("/api/chat/capabilities"),
+  chat: (body) =>
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`${r.status}`);
+      return r.json();
+    }),
   strings: (lang) => get(`/api/strings?lang=${encodeURIComponent(lang)}`),
   portfolioInsight: (p = {}) => {
     const q = new URLSearchParams(
