@@ -216,6 +216,7 @@ def add_change_points(works: pd.DataFrame) -> pd.DataFrame:
     )
     agg = agg[agg["n"] >= 5]
     shifted: dict[str, float] = {}
+    evidence: dict[str, str] = {}
     for agency, g in agg.groupby("implementing_agency"):
         if len(g) < 2:
             continue
@@ -224,9 +225,19 @@ def add_change_points(works: pd.DataFrame) -> pd.DataFrame:
         rel = np.abs(np.diff(amt)) / (amt[:-1] + 1e-9)
         if rel.size and rel.max() > 0.5:  # >50% median-amount shift year on year
             shifted[agency] = float(min(1.0, rel.max()))
+            # Before/after evidence, as the deck promises: the reviewer sees the two
+            # periods being compared, not just a magnitude.
+            at = int(np.argmax(rel))
+            before, after = g.iloc[at], g.iloc[at + 1]
+            evidence[agency] = (
+                f"{int(before['year'])}: {int(before['n'])} works at a median of "
+                f"Rs {before['med_amt']:,.0f} -> {int(after['year'])}: {int(after['n'])} "
+                f"works at a median of Rs {after['med_amt']:,.0f}"
+            )
 
     mask = works["implementing_agency"].isin(shifted)
     works.loc[mask, "change_point"] = works.loc[mask, "implementing_agency"].map(shifted)
+    works["change_point_evidence"] = works["implementing_agency"].map(evidence).fillna("")
     LOGGER.info("change points: %s agencies flagged", len(shifted))
     return works
 
@@ -355,7 +366,11 @@ def _evidence(row: pd.Series) -> list[dict]:
     if row["sig_change_point"] > 0:
         ev.append({"signal": "Behavioural change", "family": "behaviour",
                    "detail": f"Implementing agency's recommendation pattern shifted year-on-year "
-                             f"(magnitude {row['change_point']:.0%}). A change point is a lead, not a finding."})
+                             f"(magnitude {row['change_point']:.0%}). "
+                             + (f"Before/after — {row['change_point_evidence']}. "
+                                if row.get('change_point_evidence') else "")
+                             + "A change point is a lead, not a finding: a new officer or a "
+                               "revised guideline produces one too."})
     if row.get("sig_anomaly", 0) > 0:
         ev.append({"signal": "Statistical outlier", "family": "multivariate",
                    "detail": "A trained anomaly detector (IsolationForest) flags this work's "

@@ -15,10 +15,13 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from mplads import config
+from mplads.api import auth
+from mplads.api.audit import AuditLog
+from mplads.api.auth import Principal, current_principal
 
 app = FastAPI(title="MPLADS Intelligence", version="2.0")
 app.add_middleware(
@@ -83,6 +86,31 @@ class Store:
 @lru_cache(maxsize=1)
 def store() -> Store:
     return Store(config.ARTIFACTS)
+
+
+@lru_cache(maxsize=1)
+def audit() -> AuditLog:
+    return AuditLog(config.AUDIT_LOG_PATH)
+
+
+@app.middleware("http")
+async def record_every_request(request: Request, call_next):
+    """Every intelligence read is written to the append-only, hash-chained log."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/api/") and not path.startswith("/api/audit"):
+        principal = getattr(request.state, "principal", None)
+        try:
+            audit().record(
+                actor=getattr(principal, "subject", "anonymous"),
+                role=getattr(principal, "role", "open-data"),
+                action=request.method,
+                resource=path,
+                detail={"query": dict(request.query_params), "status": response.status_code},
+            )
+        except Exception:  # logging must never break the request path
+            pass
+    return response
 
 
 def _scope(rows: list[dict], role: str | None, scope: str | None) -> list[dict]:
@@ -177,11 +205,47 @@ def worklist(
 
 
 @app.get("/api/case/{work_ref}")
-def case(work_ref: str) -> dict:
+def case(work_ref: str, principal: Principal = Depends(current_principal)) -> dict:
     found = store().cases_by_ref.get(work_ref)
     if not found:
         raise HTTPException(status_code=404, detail="case file not found")
+    identity = found["identity"]
+    auth.require_scope(
+        principal,
+        {
+            "state": identity.get("state"),
+            "implementing_agency": identity.get("implementing_agency"),
+            "constituency": identity.get("constituency"),
+        },
+        f"case file {work_ref}",
+    )
     return found
+
+
+# --------------------------------------------------------------------- audit trail
+
+
+@app.get("/api/audit/verify")
+def audit_verify() -> dict:
+    """Recompute the whole hash chain and report whether it is intact."""
+    return audit().verify_chain()
+
+
+@app.get("/api/audit/tail")
+def audit_tail(limit: int = Query(50, ge=1, le=500)) -> list[dict]:
+    return audit().tail(limit)
+
+
+@app.get("/api/auth/demo-tokens")
+def demo_tokens() -> dict:
+    """Seeded tokens for the demo. Never a production issuance mechanism."""
+    return {
+        "tokens": auth.seed_demo_tokens(),
+        "require_auth": config.REQUIRE_AUTH,
+        "note": "Set MPLADS_REQUIRE_AUTH=1 to enforce bearer auth and exercise the 403 "
+                "paths. Tokens are seeded from a development signing key, not issued by "
+                "an identity provider.",
+    }
 
 
 @app.get("/api/states")

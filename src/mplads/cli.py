@@ -67,6 +67,44 @@ def cmd_api(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate(_: argparse.Namespace) -> int:
+    """Plant known anomalies in real records and measure whether we detect them."""
+    import logging
+
+    from mplads.validation import synthetic
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(message)s")
+    report = synthetic.run()
+    print()
+    print(f"detected_rate overall: {report['overall']['detected_rate']:.1%}")
+    for kind, stats in report["per_perturbation"].items():
+        print(f"  {kind:<22} {stats['detected_rate']:.1%} of {stats['planted']} planted")
+    print()
+    print(report["not_a_fraud_rate"])
+    return 0
+
+
+def cmd_tokens(_: argparse.Namespace) -> int:
+    """Print seeded demo bearer tokens."""
+    from mplads.api import auth
+
+    for name, token in auth.seed_demo_tokens().items():
+        print(f"{name:<14} {token}")
+    return 0
+
+
+def cmd_audit(_: argparse.Namespace) -> int:
+    """Verify the audit log's hash chain."""
+    from mplads.api.audit import AuditLog
+
+    result = AuditLog(config.AUDIT_LOG_PATH).verify_chain()
+    print(f"chain valid: {result['valid']}  entries: {result['entries']}")
+    if not result["valid"]:
+        print(f"  broken at seq {result['broken_at_seq']}: {result['reason']}")
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mplads", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -77,6 +115,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("pipeline", help="run the full intelligence pipeline into data/artifacts")
     api_p = sub.add_parser("api", help="serve the API over the computed artifacts")
     api_p.add_argument("--port", type=int, default=8000)
+    sub.add_parser("validate", help="synthetic-injection validation harness")
+    sub.add_parser("tokens", help="print seeded demo bearer tokens")
+    sub.add_parser("audit", help="verify the audit log hash chain")
 
     args = parser.parse_args(argv)
     handlers = {
@@ -85,6 +126,9 @@ def main(argv: list[str] | None = None) -> int:
         "ingest": cmd_ingest,
         "pipeline": cmd_pipeline,
         "api": cmd_api,
+        "validate": cmd_validate,
+        "tokens": cmd_tokens,
+        "audit": cmd_audit,
     }
     return handlers[args.command](args)
 

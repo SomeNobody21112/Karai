@@ -124,3 +124,17 @@ def ensure_dirs() -> None:
     """Create the output directories this pipeline writes to."""
     for path in (DATA_INTERIM, ARTIFACTS, DOCS):
         path.mkdir(parents=True, exist_ok=True)
+
+# --- API security -----------------------------------------------------------
+#
+# Prototype settings. REQUIRE_AUTH is off by default so the demo runs without a token;
+# turn it on to exercise the RBAC failure paths. The secret is a development value and is
+# not a production key — a real deployment injects it from the environment.
+
+import os as _os
+
+JWT_SECRET: str = _os.environ.get("MPLADS_JWT_SECRET", "dev-only-not-a-production-secret")
+REQUIRE_AUTH: bool = _os.environ.get("MPLADS_REQUIRE_AUTH", "0") == "1"
+
+#: Append-only, hash-chained audit log location.
+AUDIT_LOG_PATH = REPO_ROOT / "data" / "artifacts" / "audit_log.sqlite"
