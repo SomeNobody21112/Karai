@@ -56,7 +56,7 @@ Product constraints, not style preferences. They must survive into code and UI c
 | Agencies changed | 73 of 697 |
 | Health Index | 62.9 / 100 |
 | Synthetic validation | **69.2%** overall detection (stalled 96.1%, inflated 83.2%, break 58.0%, cloned 50.0%) |
-| Tests | **186 passing**, 2 skipped |
+| Tests | **189 passing**, 2 skipped |
 
 ## Stack & layout
 
@@ -86,7 +86,7 @@ scripts/               profile_data.py · make_demo_data.py
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest                    # 186 tests
+.venv/Scripts/python.exe -m pytest                    # 189 tests
 .venv/Scripts/python.exe -m mplads.cli ingest         # raw -> data/interim (~40s)
 .venv/Scripts/python.exe -m mplads.cli train          # 3 models (~90s)
 .venv/Scripts/python.exe -m mplads.cli pipeline       # artifacts (~50s)

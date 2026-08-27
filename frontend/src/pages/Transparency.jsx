@@ -209,9 +209,60 @@ function GroundTruth() {
       <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.7 }}>
         {r.note} Records are immutable and attributed to the officer who made them; a
         correction is a new record, never an edit.
+        {r.demo_records_excluded > 0 && (
+          <> {num(r.demo_records_excluded)} record
+            {r.demo_records_excluded === 1 ? " was" : "s were"} seeded for the demonstration
+            walkthrough and {r.demo_records_excluded === 1 ? "is" : "are"} excluded from
+            every figure above.</>
+        )}
         {d.ocr_available
           ? " Photographs of site boards are read automatically so nobody re-types a reference number standing in a field."
           : " Photo reading is unavailable on this machine, so references are entered by hand."}
+      </p>
+
+      {d.photo_reuse && <PhotoForensics report={d.photo_reuse} />}
+    </div>
+  );
+}
+
+
+/**
+ * Photographs submitted for more than one work.
+ *
+ * A cryptographic hash answers "is this the same file", which anyone defeats by re-saving.
+ * A perceptual hash answers "is this the same picture" and survives re-compression,
+ * resizing and a change in brightness — which is how a recycled site photograph actually
+ * arrives. Reported here as a count, deliberately: the value of one instance comes from
+ * how rare it is.
+ */
+function PhotoForensics({ report }) {
+  return (
+    <div className="forensics">
+      <div className="forensics-head">
+        <span className="forensics-count">{num(report.photographs)}</span>
+        <span>photograph{report.photographs === 1 ? "" : "s"} submitted ·{" "}
+          <b className={report.shared_across_works ? "forensics-hit" : ""}>
+            {num(report.shared_across_works)}
+          </b>{" "}
+          appearing under more than one work
+        </span>
+      </div>
+
+      {report.clusters?.length > 0 && (
+        <div className="forensics-list">
+          {report.clusters.map((c) => (
+            <div key={c.photo} className="forensics-row">
+              <span className="fr-level">{c.level.replace(/_/g, " ").toLowerCase()}</span>
+              <span className="fr-works">{c.works.join("  ·  ")}</span>
+              <a className="fr-view" href={`/api/photo/${c.photo}`} target="_blank"
+                rel="noreferrer">view</a>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 10 }}>
+        {report.note}
       </p>
     </div>
   );
