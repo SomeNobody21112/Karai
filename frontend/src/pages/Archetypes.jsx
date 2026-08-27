@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
+import { riskFill } from "../severity.js";
 
 function Bar({ value, color }) {
   return (
@@ -80,7 +81,7 @@ export default function Archetypes() {
                     </div>
                     <div className="arch-metric">
                       <span className="m-label">Flagged</span>
-                      <span className="m-value" style={{ color: x.lead_rate > 0.25 ? "#9a6b1f" : undefined }}>
+                      <span className="m-value" style={{ color: riskFill(x.lead_rate) }}>
                         {(x.lead_rate * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -101,8 +102,8 @@ export default function Archetypes() {
                           Distinctive terms in this cluster
                         </div>
                         <div className="chips">
-                          {x.top_terms.split(",").slice(0, 8).map((t) => (
-                            <span className="chip" key={t}>{t.trim()}</span>
+                          {x.top_terms.split(",").slice(0, 8).map((t, ti) => (
+                            <span className="chip" key={`${ti}-${t}`}>{t.trim()}</span>
                           ))}
                         </div>
                       </div>

@@ -37,14 +37,37 @@
   --brass: #9a6b1f;
   --brass-soft: #f6ecd8;
 
-  /* semantics */
-  --high: #a8452a;
-  --high-soft: #f6e6e0;
-  --med: #9a6b1f;
-  --med-soft: #f6ecd8;
-  --low: #5c554a;
-  --ok: #2f5d3f;
-  --ok-soft: #e3ede5;
+  /* ---------------------------------------------------------------------
+     severity — the traffic-light scale, mirrored in src/severity.js.
+     Chosen against the parchment ground, not by eye: every `-fill` clears 3:1
+     as a chart mark, every `-ink` clears 4.5:1 as label text on its own `-soft`
+     chip. Red and amber cannot be separated under deuteranopia, so severity is
+     never carried by colour alone — each level also has a glyph and its label.
+     --------------------------------------------------------------------- */
+  --sev-critical: #8f1d14;
+  --sev-critical-ink: #7d1d12;
+  --sev-critical-soft: #f7e3df;
+  --sev-high: #d13a2a;
+  --sev-high-ink: #a8301f;
+  --sev-high-soft: #fae7e2;
+  --sev-medium: #b58200;
+  --sev-medium-ink: #8a6508;
+  --sev-medium-soft: #faeed3;
+  --sev-low: #43976a;
+  --sev-low-ink: #2b6b47;
+  --sev-low-soft: #e3ede5;
+  --sev-none: #c4b8a2;
+  --sev-none-ink: #5c554a;
+  --sev-none-soft: #f1ece1;
+
+  /* legacy aliases — kept so nothing that still reads them breaks */
+  --high: var(--sev-high);
+  --high-soft: var(--sev-high-soft);
+  --med: var(--sev-medium);
+  --med-soft: var(--sev-medium-soft);
+  --low: var(--sev-low);
+  --ok: var(--sev-low);
+  --ok-soft: var(--sev-low-soft);
 
   --r-sm: 3px;
   --r: 5px;
@@ -226,10 +249,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 20px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px;
 }
 .badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.badge.HIGH, .badge.CRITICAL { color: var(--brick); background: var(--brick-soft); }
-.badge.HIGH::before { animation: pulseDot 2s infinite; }
-.badge.MEDIUM { color: var(--brass); background: var(--brass-soft); }
-.badge.LOW { color: var(--text-2); background: var(--bg-2); }
+
+/* Severity badges bring their own glyph, so they drop the generic dot. The glyph
+   is the point: red and amber are indistinguishable under deuteranopia, so shape
+   and label — never colour alone — are what actually carry the level. */
+.badge.sev::before { display: none; }
+.badge .glyph { font-size: 8.5px; line-height: 1; display: inline-block; }
+.badge.CRITICAL { color: var(--sev-critical-ink); background: var(--sev-critical-soft); }
+.badge.HIGH { color: var(--sev-high-ink); background: var(--sev-high-soft); }
+.badge.MEDIUM { color: var(--sev-medium-ink); background: var(--sev-medium-soft); }
+.badge.LOW { color: var(--sev-low-ink); background: var(--sev-low-soft); }
+.badge.NONE { color: var(--sev-none-ink); background: var(--sev-none-soft); }
+.badge.CRITICAL .glyph, .badge.HIGH .glyph { animation: pulseDot 2s infinite; }
 .fam-tag {
   font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-3);
   border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px; margin-left: 8px;
@@ -316,6 +347,14 @@ tbody tr:last-child td { border-bottom: none; }
   flex-wrap: wrap; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .dot { width: 9px; height: 9px; border-radius: 2px; }
+/* The legend repeats the level's glyph, so the key still reads when the swatches
+   are indistinguishable — printed in mono, or to a red-green colourblind eye. */
+.legend-glyph { font-size: 8px; color: var(--text-3); margin-left: -3px; }
+
+/* A stat tile that reports a severity level, banded down its leading edge. */
+.sev-tile { border-left: 3px solid var(--sev, var(--line-strong)); }
+.sev-tile .label { display: inline-flex; align-items: center; gap: 6px; }
+.sev-tile .label .glyph { font-size: 9px; line-height: 1; }
 
 .meter { height: 7px; background: var(--bg-2); border-radius: 4px; overflow: hidden; margin-top: 9px; }
 .meter > span { display: block; height: 100%; border-radius: 4px; transition: width 1s var(--ease); }
@@ -325,6 +364,12 @@ tbody tr:last-child td { border-bottom: none; }
 /* ============================================================ CASE FILE */
 .back { color: var(--text-2); font-size: 13px; margin-bottom: 18px; display: inline-flex; gap: 7px; }
 .back:hover { color: var(--brick); }
+
+/* An in-table link to a case file. Was inline brass with no underline and no
+   hover, so it did not read as clickable at all. */
+.link { color: var(--brick-deep); border-bottom: 1px solid transparent; transition: border-color .15s, color .15s; }
+.link:hover { color: var(--brick); border-bottom-color: currentColor; }
+.link:focus-visible { outline: 2px solid var(--brick); outline-offset: 2px; border-radius: 2px; }
 .case-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 26px;
   margin-bottom: 12px; flex-wrap: wrap; }
 .case-title { font-size: 25px; font-weight: 600; max-width: 760px; line-height: 1.28;
@@ -464,7 +509,11 @@ tbody tr:last-child td { border-bottom: none; }
   letter-spacing: -2px; margin-bottom: 26px; max-width: 16ch;
   animation: fadeUp 0.7s var(--ease) 0.06s both;
 }
-.hero h1 .grad { color: var(--brick); font-style: italic; }
+/* The emphasised phrase in a display heading. Scoped to `.hero h1` before, which
+   left the closing CTA's `.grad` span with no colour of its own — it carried an
+   inline gradient built from two dark-theme tokens that no longer exist, so it
+   resolved to `background: none` under `color: transparent` and was invisible. */
+.grad { color: var(--brick); font-style: italic; }
 .hero .lede {
   font-size: clamp(15px, 1.6vw, 18px); color: var(--text-2); max-width: 640px;
   margin-bottom: 38px; line-height: 1.75; animation: fadeUp 0.7s var(--ease) 0.14s both;
@@ -618,3 +667,161 @@ tbody tr:last-child td { border-bottom: none; }
   .content, .topbar, .role-bar { padding-left: 18px; padding-right: 18px; }
   .section, .hero { padding-left: 20px; padding-right: 20px; }
 }
+
+/* ============================================================ LOGIN */
+.login-page {
+  min-height: 100vh; display: grid; place-items: center; padding: 40px 20px;
+  background: var(--bg-1); position: relative;
+}
+.login-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 42%, #000 15%, transparent 72%);
+  opacity: 0.8;
+}
+.login-card {
+  position: relative; width: min(430px, 100%); background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--r); padding: 34px 32px;
+  box-shadow: var(--shadow-2); animation: fadeUp 0.5s var(--ease);
+}
+.login-head { display: flex; align-items: center; gap: 14px; padding-bottom: 22px;
+  border-bottom: 1px solid var(--line-soft); margin-bottom: 24px; }
+.login-logo { color: var(--brick); }
+.login-title { font-family: "Fraunces", Georgia, serif; font-size: 19px; font-weight: 600; }
+.login-sub { font-size: 10.5px; color: var(--text-3); text-transform: uppercase;
+  letter-spacing: 1px; margin-top: 3px; font-weight: 600; }
+
+.login-form { display: flex; flex-direction: column; }
+.login-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-3); font-weight: 700; margin-bottom: 6px; }
+.login-form .input { min-width: 0; width: 100%; margin-bottom: 16px; }
+.login-submit { width: 100%; padding: 12px; margin-top: 4px; }
+.login-error { background: var(--brick-soft); color: var(--brick-deep); font-size: 12.5px;
+  padding: 9px 13px; border-radius: var(--r-sm); margin-bottom: 14px;
+  border-left: 2px solid var(--brick); }
+
+.login-demo { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
+.login-demo-head { font-size: 10px; text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--text-3); font-weight: 700; margin-bottom: 11px; }
+.login-accounts { display: flex; flex-direction: column; gap: 6px; }
+.login-account {
+  text-align: left; padding: 9px 12px; border: 1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--bg-1); display: flex;
+  flex-direction: column; gap: 2px; transition: border-color 0.16s;
+}
+.login-account:hover { border-color: var(--brick); }
+.la-name { font-size: 12.5px; font-weight: 600; }
+.la-meta { font-size: 10.5px; color: var(--text-3); font-family: "Roboto Mono", monospace; }
+.login-warn { font-size: 10.5px; color: var(--text-3); margin-top: 12px; line-height: 1.6; }
+.login-skip { display: block; width: 100%; margin-top: 20px; font-size: 12px;
+  color: var(--text-2); text-align: center; }
+.login-skip:hover { color: var(--brick); }
+
+.session-chip {
+  display: inline-flex; align-items: center; gap: 9px; font-size: 11.5px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+  padding: 4px 6px 4px 12px; color: var(--text-2);
+}
+.session-chip button { font-size: 10.5px; color: var(--text-3);
+  border: 1px solid var(--line); border-radius: 20px; padding: 2px 9px; }
+.session-chip button:hover { color: var(--brick); border-color: var(--brick); }
+
+/* ============================================================ FIELD VERIFY */
+.verify { margin-bottom: 16px; }
+.verify-locked { font-size: 12.5px; color: var(--text-2); line-height: 1.7;
+  background: var(--bg-2); padding: 13px 15px; border-radius: var(--r-sm); }
+
+.verify-history { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.verify-entry { border-left: 3px solid var(--line-strong); background: var(--bg-1);
+  padding: 11px 14px; border-radius: var(--r-sm); }
+.verify-entry.ok { border-left-color: var(--forest); }
+.verify-entry.warn { border-left-color: var(--brass); }
+.verify-entry.bad { border-left-color: var(--brick); }
+.ve-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ve-outcome { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+.ve-when { font-size: 10.5px; color: var(--text-3); font-family: "Roboto Mono", monospace; }
+.ve-notes { font-size: 12.5px; color: var(--text-2); margin-top: 6px; line-height: 1.6; }
+.ve-actor { font-size: 10.5px; color: var(--text-3); margin-top: 7px;
+  font-family: "Roboto Mono", monospace; }
+.ve-photo { color: var(--brick); margin-left: 10px; border-bottom: 1px dotted var(--brick); }
+
+.verify-form { display: flex; flex-direction: column; }
+.verify-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-3); font-weight: 700; margin: 14px 0 6px; }
+.verify-file { font-size: 12px; color: var(--text-2); }
+.verify-file::file-selector-button {
+  font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 14px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--panel); color: var(--text); margin-right: 12px; cursor: pointer;
+}
+.verify-file::file-selector-button:hover { border-color: var(--brick); color: var(--brick-deep); }
+.verify-scanning { font-size: 12px; color: var(--brass); margin-top: 10px; }
+
+.verify-shot { margin-top: 12px; }
+.verify-shot img { width: 100%; max-height: 210px; object-fit: cover;
+  border: 1px solid var(--line); border-radius: var(--r-sm); }
+.verify-read { margin-top: 10px; background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 12px 14px; }
+.vr-head { font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-3); font-weight: 700; display: flex; gap: 10px; align-items: center; }
+.vr-ok { color: var(--forest); text-transform: none; letter-spacing: 0; font-size: 11px; }
+.vr-warn { color: var(--brick); text-transform: none; letter-spacing: 0; font-size: 11px; }
+.vr-field { font-size: 12.5px; margin-top: 8px; display: flex; gap: 9px; align-items: baseline;
+  flex-wrap: wrap; }
+.vr-field b { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text-3); }
+.vr-conf { font-size: 10.5px; color: var(--forest); font-family: "Roboto Mono", monospace; }
+.vr-lines { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.vr-lines span { font-size: 10.5px; background: var(--bg-2); border: 1px solid var(--line);
+  padding: 2px 8px; border-radius: 20px; color: var(--text-2);
+  font-family: "Roboto Mono", monospace; }
+.vr-note { font-size: 10.5px; color: var(--text-3); margin-top: 10px; line-height: 1.6; }
+
+.verify-notes { width: 100%; min-width: 0; resize: vertical; font-family: inherit; }
+.verify-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.verify-saved { font-size: 11.5px; color: var(--forest); font-weight: 600; }
+.verify-foot { font-size: 10.5px; color: var(--text-3); margin-top: 12px; line-height: 1.65;
+  padding-top: 11px; border-top: 1px solid var(--line-soft); }
+.scope-note { font-size: 11px; line-height: 1.5; }
+.scope-note b { color: var(--text-2); font-weight: 700; }
+
+/* photo re-use: the loudest thing on the verification panel, deliberately */
+.verify-reuse { margin-top: 12px; border: 1px solid var(--brick); border-radius: var(--r-sm);
+  background: var(--brick-soft); padding: 13px 15px; }
+.vru-head { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  font-weight: 800; color: var(--brick-deep); margin-bottom: 9px; }
+.vru-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline;
+  font-size: 12.5px; padding: 5px 0; border-top: 1px solid rgba(168, 69, 42, 0.18); }
+.vru-row a { font-family: "Roboto Mono", monospace; font-weight: 700; color: var(--brick-deep);
+  border-bottom: 1px solid currentColor; }
+.vru-when { font-size: 10.5px; color: var(--text-3); font-family: "Roboto Mono", monospace; }
+.vru-level { font-size: 11.5px; color: var(--brick-deep); }
+.vru-note { font-size: 11px; color: var(--text-2); line-height: 1.65; margin-top: 9px;
+  padding-top: 9px; border-top: 1px solid rgba(168, 69, 42, 0.18); }
+
+.vr-reason { font-size: 12px; color: var(--brick-deep); line-height: 1.65; margin-top: 9px; }
+.vr-alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.vr-alt { font-size: 11px; font-family: "Roboto Mono", monospace; padding: 3px 9px;
+  border: 1px solid var(--line-strong); border-radius: 20px; color: var(--text-2); }
+.vr-alt:hover { border-color: var(--brick); color: var(--brick-deep); }
+
+.verify-ack { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px;
+  font-size: 12.5px; line-height: 1.6; background: var(--bg-2); padding: 12px 14px;
+  border-radius: var(--r-sm); cursor: pointer; }
+.verify-ack input { margin-top: 2px; accent-color: var(--brick); flex: none; }
+.verify-blocked { font-size: 11.5px; color: var(--brick-deep); }
+
+.ve-demo { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.9px;
+  font-weight: 800; color: var(--brass); border: 1px solid var(--brass);
+  border-radius: 20px; padding: 1px 7px; margin-right: 9px; }
+
+.pill-clear { color: var(--forest); border-color: var(--forest); }
+.clear-note { font-size: 13.5px; color: var(--text-2); line-height: 1.7;
+  border-left: 3px solid var(--forest); margin-bottom: 18px; }
+.clear-note strong { color: var(--text); }
+.next-step { margin-top: 16px; }
+.next-step p { font-size: 13.5px; line-height: 1.75; color: var(--text-2); margin-top: 8px; }
+.section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.1px;
+  font-weight: 800; color: var(--text-3); }

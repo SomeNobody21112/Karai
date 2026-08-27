@@ -74,3 +74,14 @@ def work_rows(raw_stage_rows: pd.DataFrame) -> pd.DataFrame:
         "MP" + usable["mp_id"] + "-W" + usable["WORK_RECOMMENDATION_DTL_ID"]
     )
     return usable
+
+
+@pytest.fixture(scope="session")
+def corpus() -> pd.DataFrame:
+    """Every scored work. Skips rather than fails when the pipeline has not been run."""
+    from mplads.api.app import store
+
+    frame = store().corpus
+    if frame.empty:
+        pytest.skip("works_scored.parquet not built — run `mplads pipeline` first")
+    return frame

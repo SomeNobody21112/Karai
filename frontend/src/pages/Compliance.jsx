@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, num, rupees } from "../api.js";
-import { Loading, Topbar } from "../components/Bits.jsx";
+import { Band, Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
+import { authority, scoreFill, sev, sevFill } from "../severity.js";
 
-const AUTHORITY = {
-  OFFICIAL_RULE: { c: "#a8452a", t: "Official rule" },
-  OBSERVED_BASELINE: { c: "#9a6b1f", t: "Observed baseline" },
-  STATISTICAL_OUTLIER: { c: "#a8452a", t: "Statistical outlier" },
-};
-const SEV = { HIGH: "#a8452a", MEDIUM: "#9a6b1f", LOW: "#a8452a" };
+const LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 export default function Compliance() {
   const [c, setC] = useState(null);
@@ -44,7 +40,9 @@ export default function Compliance() {
                 </span>
                 <span>{(comp.value * 100).toFixed(1)}%</span>
               </div>
-              <div className="meter"><span style={{ width: `${comp.value * 100}%`, background: "#a8452a" }} /></div>
+              <div className="meter">
+                <span style={{ width: `${comp.value * 100}%`, background: scoreFill(comp.value) }} />
+              </div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{comp.explanation}</div>
             </div>
           ))}
@@ -55,10 +53,13 @@ export default function Compliance() {
 
         <Reveal><div className="section-title">Early-warning levels (open works)</div></Reveal>
         <div className="grid cols-4">
-          {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((lvl) => (
-            <div className="card stat" key={lvl}>
-              <div className="label">{lvl}</div>
-              <div className="value" style={{ fontSize: 26, color: SEV[lvl] || "#5c554a" }}>
+          {LEVELS.map((lvl) => (
+            <div className="card stat sev-tile" key={lvl} style={{ "--sev": sevFill(lvl) }}>
+              <div className="label">
+                <i className="glyph" aria-hidden="true" style={{ color: sevFill(lvl) }}>{sev(lvl).glyph}</i>
+                {lvl}
+              </div>
+              <div className="value" style={{ fontSize: 26, color: sev(lvl).ink }}>
                 {num(w.levels[lvl] || 0)}
               </div>
               <div className="foot">{rupees(w.exposure_by_level?.[lvl] || 0)} exposure</div>
@@ -76,12 +77,12 @@ export default function Compliance() {
             </tr></thead>
             <tbody>
               {c.checks.map((chk) => {
-                const a = AUTHORITY[chk.authority] || { c: "#5c554a", t: chk.authority };
+                const a = authority(chk.authority);
                 return (
                   <tr key={chk.key}>
                     <td style={{ fontWeight: 600 }}>{chk.check}</td>
-                    <td><span className="badge" style={{ color: a.c, background: "#f1ece1" }}>{a.t}</span></td>
-                    <td><span style={{ color: SEV[chk.severity] }}>{chk.severity}</span></td>
+                    <td><span className="badge" style={{ color: a.ink, background: a.soft }}>{a.label}</span></td>
+                    <td><Band value={chk.severity} /></td>
                     <td className="num">{num(chk.works_affected)}</td>
                     <td className="muted" style={{ fontSize: 12 }}>{chk.meaning}</td>
                   </tr>

@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
-import { Loading, Topbar } from "../components/Bits.jsx";
+import { Band, Loading, Topbar } from "../components/Bits.jsx";
 import { CountUp, Reveal } from "../components/Reveal.jsx";
-
-const CLASS_COLOR = {
-  EXACT: "#a8452a", NEAR_EXACT: "#9a6b1f",
-  HIGH_SIMILARITY: "#a8452a", POSSIBLE_REPEAT: "#5c554a",
-};
+import { DUPLICATE_LEVEL, prettify } from "../severity.js";
 
 const PAGE = 20;
 
@@ -76,23 +72,24 @@ export default function Duplicates() {
               {d.items.map((p, i) => (
                 <tr key={i}>
                   <td>
-                    <Link to={`/case/${p.work_ref_a}`} style={{ color: "#9a6b1f" }}>
+                    <Link to={`/case/${p.work_ref_a}`} className="link">
                       {p.work_ref_a}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_a}</div>
                   </td>
                   <td>
-                    <Link to={`/case/${p.work_ref_b}`} style={{ color: "#9a6b1f" }}>
+                    <Link to={`/case/${p.work_ref_b}`} className="link">
                       {p.work_ref_b}
                     </Link>
                     <div className="desc-cell muted" style={{ fontSize: 11 }}>{p.description_b}</div>
                   </td>
                   <td>
-                    <span className="badge" style={{ color: CLASS_COLOR[p.classification], background: "#f1ece1" }}>
-                      {(p.similarity * 100).toFixed(1)}%
-                    </span>
+                    <Band
+                      value={DUPLICATE_LEVEL[p.classification] || "NONE"}
+                      label={`${(p.similarity * 100).toFixed(1)}%`}
+                    />
                     <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>
-                      {p.classification.replace("_", " ")}
+                      {prettify(p.classification)}
                     </div>
                   </td>
                   <td className="num">{rupees(p.amount_a)}</td>

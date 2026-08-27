@@ -92,11 +92,15 @@ export default function Worklist() {
   useEffect(() => {
     setData(null);
     setOpenRef(null);
+    let live = true;
     const timer = setTimeout(() => {
       api.worklist({ limit: PAGE, offset: page * PAGE, q, state, band, ...params })
-        .then(setData).catch(console.error);
+        // Without the guard a slow early request could land after a fast later one
+        // and repaint the table with the previous filter's rows.
+        .then((d) => { if (live) setData(d); })
+        .catch((e) => { if (live) console.error(e); });
     }, 200);
-    return () => clearTimeout(timer);
+    return () => { live = false; clearTimeout(timer); };
   }, [q, state, band, page, role, scope]);
 
   useEffect(() => { setPage(0); }, [q, state, band, role, scope]);

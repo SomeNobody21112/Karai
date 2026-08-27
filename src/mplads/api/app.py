@@ -3,23 +3,29 @@
 Everything is loaded into memory once at startup (210k rows is nothing) and served
 read-only. No model runs here — the pipeline produced the artifacts; this serves them.
 
-Role scoping is **simulation**, not authentication: the client declares a role and a scope,
-and the API narrows the data accordingly. This is prototype behaviour and is labelled as
-such in the UI. Production would put a real identity provider in front of the same filter.
+Role scoping is enforced from a signed token: `auth.require_scope` narrows every scoped
+read to the caller's jurisdiction, and the stakeholder switcher in the UI only reframes
+what an already-permitted caller sees. The accounts themselves are seeded for evaluation
+and listed openly at `/api/auth/accounts`; a deployment swaps that one function for an
+identity provider and nothing else changes.
 """
 
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from mplads import chat as chatbot
+from mplads import field, ocr
 from mplads import config, llm
 from mplads.api import auth
 from mplads.api.strings import UI
@@ -27,7 +33,25 @@ from mplads.api import translations
 from mplads.api.audit import AuditLog
 from mplads.api.auth import Principal, current_principal
 
-app = FastAPI(title="MPLADS Intelligence", version="2.0")
+LOGGER = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Load the corpus and flatten its search text before the first question arrives.
+
+    Done here rather than lazily so the first officer to ask something does not pay nine
+    seconds for everyone else's convenience.
+    """
+    try:
+        chatbot.warm()
+    except Exception as exc:  # pragma: no cover - never block startup on a warm-up
+        LOGGER.warning("search index not pre-built (%s); it will build on first use",
+                       type(exc).__name__)
+    yield
+
+
+app = FastAPI(title="MPLADS Intelligence", version="2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
@@ -85,6 +109,62 @@ class Store:
         self.duplicate_pairs = (
             pd.read_parquet(dupes) if dupes.exists() else pd.DataFrame()
         )
+        self._artifacts = artifacts
+        self._corpus: pd.DataFrame | None = None
+        self._all_refs: set[str] | None = None
+        self._amounts: dict[str, float] | None = None
+
+    #: The columns the assistant and the photo matcher need. Everything else in
+    #: works_scored stays on disk — the full 82-column frame is 547 MB in memory and
+    #: none of the rest is ever asked for.
+    CORPUS_COLUMNS = [
+        "work_ref", "state_name", "constituency", "implementing_agency", "mp_name",
+        "house", "work_description", "activity_category", "archetype_label",
+        "recommended_amount", "is_completed", "is_open", "duration_days", "band",
+        "priority", "rs_exposure", "audit_roi", "compliance_flags",
+        "early_warning_level", "risk_score", "recommendation_date", "completion_date",
+    ]
+    CORPUS_CATEGORICAL = [
+        "state_name", "constituency", "implementing_agency", "mp_name", "house",
+        "activity_category", "archetype_label", "band", "early_warning_level",
+    ]
+
+    @property
+    def corpus(self) -> pd.DataFrame:
+        """All 210,993 works, not only the ones surfaced as leads.
+
+        The dashboard ranks leads; a question like "what has Bihar recommended for school
+        buildings" is about the whole portfolio. Loaded on first use and held — about 66 MB
+        once the repeated strings are categorical.
+        """
+        if self._corpus is None:
+            path = self._artifacts / "works_scored.parquet"
+            if not path.exists():
+                self._corpus = pd.DataFrame(columns=self.CORPUS_COLUMNS)
+            else:
+                frame = pd.read_parquet(path, columns=self.CORPUS_COLUMNS)
+                for column in self.CORPUS_CATEGORICAL:
+                    frame[column] = frame[column].astype("category")
+                self._corpus = frame
+                LOGGER.info("corpus loaded: %s works", f"{len(frame):,}")
+        return self._corpus
+
+    @property
+    def all_refs(self) -> set[str]:
+        """Every work reference in the portfolio — what a photographed board is matched to."""
+        if self._all_refs is None:
+            self._all_refs = set(self.corpus["work_ref"])
+        return self._all_refs
+
+    @property
+    def amounts(self) -> dict[str, float]:
+        """Recommended amount per work, so a figure read off a board can be checked."""
+        if self._amounts is None:
+            frame = self.corpus
+            self._amounts = dict(
+                zip(frame["work_ref"], frame["recommended_amount"].astype(float))
+            )
+        return self._amounts
 
 
 @lru_cache(maxsize=1)
@@ -210,9 +290,9 @@ def worklist(
 
 @app.get("/api/case/{work_ref}")
 def case(work_ref: str, principal: Principal = Depends(current_principal)) -> dict:
-    found = store().cases_by_ref.get(work_ref)
+    found = store().cases_by_ref.get(work_ref) or _clear_record(work_ref)
     if not found:
-        raise HTTPException(status_code=404, detail="case file not found")
+        raise HTTPException(status_code=404, detail="no such work in this portfolio")
     identity = found["identity"]
     auth.require_scope(
         principal,
@@ -224,6 +304,52 @@ def case(work_ref: str, principal: Principal = Depends(current_principal)) -> di
         f"case file {work_ref}",
     )
     return found
+
+
+def _clear_record(work_ref: str) -> dict | None:
+    """A case file for a work nothing was flagged on.
+
+    173,288 of the 210,993 works were never surfaced, and returning 404 for all of them
+    made "nothing wrong with this work" indistinguishable from "no such work". It also
+    made them unverifiable, which quietly guaranteed that every field record an officer
+    ever wrote would be about a work the system had already flagged — a label set of
+    nothing but positives, useless for fitting anything.
+    """
+    frame = store().corpus
+    row = frame[frame["work_ref"] == work_ref]
+    if row.empty:
+        return None
+    r = row.iloc[0]
+    return {
+        "work_ref": work_ref,
+        "surfaced": False,
+        "identity": {
+            "description": str(r["work_description"]),
+            "state": str(r["state_name"]),
+            "constituency": str(r["constituency"]),
+            "implementing_agency": str(r["implementing_agency"]),
+            "mp_name": str(r["mp_name"]),
+            "recommended_amount": float(r["recommended_amount"]),
+            "recommendation_date": str(r["recommendation_date"])[:10],
+            "completion_date": str(r["completion_date"])[:10]
+                if pd.notna(r["completion_date"]) else None,
+            "is_completed": bool(r["is_completed"]),
+        },
+        "archetype": {"label": str(r["archetype_label"])},
+        "confidence_band": "NONE",
+        "n_signal_families": 0,
+        "priority": 0.0,
+        "exposure_rupees": 0.0,
+        "audit_roi": 0.0,
+        "evidence": [],
+        "compliance_findings": [],
+        "recommended_next_step": (
+            "No signal fired on this work — it sits inside the norms of its peer group on "
+            "every measure we compute. Nothing here needs a reviewer. It can still be "
+            "verified in the field, and a confirmed-fine record is as useful to this "
+            "system as a confirmed problem."
+        ),
+    }
 
 
 # --------------------------------------------------------------------- audit trail
@@ -335,6 +461,145 @@ def chat_capabilities() -> dict:
             "What models did you train?",
         ],
     }
+
+
+# ------------------------------------------------- login, OCR, field verification
+
+
+DEMO_ACCOUNTS = {
+    "ministry":  {"password": "mplads2026", "role": "ministry", "scope": None,
+                  "name": "MoSPI Programme Division"},
+    "auditor":   {"password": "mplads2026", "role": "auditor", "scope": None,
+                  "name": "CAG Audit Officer"},
+    "bihar":     {"password": "mplads2026", "role": "state", "scope": "Bihar",
+                  "name": "Bihar State Nodal Officer"},
+    "saran":     {"password": "mplads2026", "role": "mp", "scope": "SARAN",
+                  "name": "Saran Constituency Office"},
+}
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest) -> dict:
+    """Issue a bearer token for a seeded account.
+
+    Prototype only: accounts are seeded in code, passwords are shared and not hashed,
+    and there is no registration or reset. Production replaces this endpoint with an
+    identity provider; everything behind it — the token, the scope, the audit trail —
+    stays exactly as it is.
+    """
+    account = DEMO_ACCOUNTS.get(req.username.strip().lower())
+    if not account or account["password"] != req.password:
+        raise HTTPException(401, "incorrect username or password")
+    token = auth.issue_token(req.username, account["role"], account["scope"])
+    return {
+        "token": token,
+        "user": {"username": req.username, "name": account["name"],
+                 "role": account["role"], "scope": account["scope"]},
+        "note": "Seeded prototype account. Not a production authentication mechanism.",
+    }
+
+
+@app.get("/api/auth/accounts")
+def demo_accounts() -> dict:
+    """The seeded accounts, so the login screen can offer them. Never do this in production."""
+    return {
+        "accounts": [
+            {"username": u, "name": a["name"], "role": a["role"], "scope": a["scope"]}
+            for u, a in DEMO_ACCOUNTS.items()
+        ],
+        "shared_password": "mplads2026",
+        "warning": "Seeded demo credentials, displayed deliberately for evaluation. "
+                   "A production deployment uses an identity provider and never lists accounts.",
+    }
+
+
+@app.post("/api/ocr")
+async def read_photo(file: UploadFile = File(...), work_ref: str = Form(""),
+                     principal: Principal = Depends(current_principal)) -> dict:
+    """Read a site board, identify the work, and check the photograph has not been seen before.
+
+    Three answers come back from one upload: the text on the board, which work it belongs
+    to, and whether this exact picture was already submitted for a different sanction. The
+    third is the one a human could not do at scale.
+    """
+    data = await file.read()
+    if len(data) > 12 * 1024 * 1024:
+        raise HTTPException(400, "image is larger than 12 MB")
+    try:
+        name = field.save_photo(data, file.filename or "upload.jpg")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    extracted = ocr.read(field.PHOTOS / name)
+    extracted["photo"] = name
+    # Matched against every work in the portfolio, not only the surfaced leads — an
+    # officer photographing an ordinary work should be told it is ordinary, not unknown.
+    extracted["match"] = ocr.match_to_work(extracted, store().all_refs, store().amounts)
+    extracted["reuse"] = field.check_photo(
+        data, name, work_ref or extracted["match"].get("work_ref") or "",
+        actor=principal.subject,
+    )
+    return extracted
+
+
+@app.get("/api/photo/{name}")
+def photo(name: str):
+    """Serve an uploaded verification photo."""
+    path = field.PHOTOS / Path(name).name  # basename only — no traversal
+    if not path.exists():
+        raise HTTPException(404, "photo not found")
+    return FileResponse(path)
+
+
+class VerificationRequest(BaseModel):
+    outcome: str
+    notes: str = ""
+    photo: str | None = None
+    ocr_text: str | None = None
+
+
+@app.post("/api/verify/{work_ref}")
+def add_verification(work_ref: str, req: VerificationRequest,
+                     principal: Principal = Depends(current_principal)) -> dict:
+    """Record what an officer found in the field. Immutable once written."""
+    auth.require_identity(principal, "record a field verification")
+    case = store().cases_by_ref.get(work_ref)
+    if case:
+        identity = case["identity"]
+        auth.require_scope(
+            principal,
+            {"state": identity.get("state"),
+             "implementing_agency": identity.get("implementing_agency"),
+             "constituency": identity.get("constituency")},
+            f"work {work_ref}",
+        )
+    try:
+        return field.record(
+            work_ref=work_ref, outcome=req.outcome, notes=req.notes.strip(),
+            photo=req.photo, ocr_text=req.ocr_text,
+            actor=principal.subject, role=principal.role,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/api/verify/{work_ref}")
+def verifications(work_ref: str) -> dict:
+    return {"work_ref": work_ref, "verifications": field.for_work(work_ref),
+            "outcomes": field.OUTCOMES}
+
+
+@app.get("/api/field/summary")
+def field_summary() -> dict:
+    """Verification activity, and how far it is from producing usable labels."""
+    return {"readiness": field.label_readiness(), "recent": field.recent(20),
+            "outcomes": field.OUTCOMES, "ocr_available": ocr.available(),
+            "photo_reuse": field.photo_reuse_report()}
 
 
 @app.get("/api/insight/case/{work_ref}")

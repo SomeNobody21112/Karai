@@ -109,7 +109,7 @@ export default function Landing() {
               <div className="l">Works analysed</div>
             </div>
             <div className="hero-stat">
-              <div className="v" style={{ color: "var(--cyan)" }}>
+              <div className="v" style={{ color: "var(--brass)" }}>
                 {n ? <CountUp end={n.total_recommended_rupees / 1e7} decimals={0}
                   format={(v) => `₹${v.toLocaleString("en-IN")} Cr`} /> : "—"}
               </div>
@@ -256,10 +256,7 @@ export default function Landing() {
           <Reveal>
             <h2 style={{ maxWidth: 760, margin: "0 auto 18px" }}>
               From <span style={{ color: "var(--text-3)" }}>"what happened?"</span> to{" "}
-              <span className="grad" style={{
-                background: "linear-gradient(110deg, var(--brand-bright), var(--cyan))",
-                WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
-              }}>"where should I look first?"</span>
+              <span className="grad">"where should I look first?"</span>
             </h2>
           </Reveal>
           <Reveal delay={90}>

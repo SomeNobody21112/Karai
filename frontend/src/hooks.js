@@ -37,30 +37,57 @@ export function useReveal({ threshold = 0.12, once = true, rootMargin = "0px 0px
   return [ref, visible];
 }
 
-/** Count from 0 up to `end` once `active` turns true. Eased, frame-based. */
+/**
+ * Count from 0 up to `end` once `active` turns true. Eased, frame-based.
+ *
+ * Browsers do not run `requestAnimationFrame` in a background tab. If the page
+ * loaded hidden — which is exactly what happens when you open the demo in a tab
+ * and switch to it a moment later — the first frame never arrived, the `started`
+ * latch was already set, and the figure stayed on 0 permanently, even once the
+ * tab was focused. So: while hidden, skip straight to the final value, and only
+ * animate when there is actually a compositor to animate for.
+ */
 export function useCountUp(end, { duration = 1500, active = true, decimals = 0 } = {}) {
   const [value, setValue] = useState(0);
   const started = useRef(false);
 
   useEffect(() => {
-    if (!active || started.current || end == null) return;
-    started.current = true;
-    if (REDUCED()) {
-      setValue(end);
+    if (started.current || end == null) return;
+
+    // Every path lands on the same rounding, so a counter that skips the
+    // animation reads identically to one that ran it.
+    const quantise = (v) => (decimals ? Number(v.toFixed(decimals)) : Math.round(v));
+
+    // A hidden document has no compositor: requestAnimationFrame will not tick,
+    // and the IntersectionObserver driving `active` may never report either. Land
+    // on the real figure rather than waiting for frames that are not coming.
+    if (REDUCED() || document.hidden) {
+      started.current = true;
+      setValue(quantise(end));
       return;
     }
+    if (!active) return;
+
+    started.current = true;
     let raf;
     const t0 = performance.now();
     const tick = (now) => {
       const p = Math.min(1, (now - t0) / duration);
       // easeOutExpo — fast start, gentle landing
       const eased = p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
-      const next = end * eased;
-      setValue(decimals ? Number(next.toFixed(decimals)) : Math.round(next));
+      setValue(quantise(end * eased));
       if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+
+    // If the tab is backgrounded mid-count the frames stop; land on the real
+    // figure rather than freezing part-way there.
+    const onHide = () => { if (document.hidden) { cancelAnimationFrame(raf); setValue(quantise(end)); } };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onHide);
+    };
   }, [end, duration, active, decimals]);
 
   return value;

@@ -77,19 +77,49 @@ def decode_token(token: str) -> Principal:
     return Principal(claims["sub"], claims["role"], claims.get("scope"))
 
 
+#: The caller with no badge. Reads what the public can read; writes nothing.
+ANONYMOUS = Principal("anonymous", "ministry", None)
+
+
 def current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> Principal:
-    """Authenticated principal, or the open-data reader when auth is disabled."""
+    """Authenticated principal, or the open-data reader when auth is disabled.
+
+    A presented token is always honoured, even when `REQUIRE_AUTH` is off. That flag
+    governs whether a caller *must* identify themselves to read, not whether we bother
+    reading the badge they handed us — and getting that backwards attributed every field
+    verification to "anonymous" no matter who was signed in, which defeats the point of a
+    store whose whole value is that findings are attributable.
+
+    A token that is present but invalid is rejected rather than quietly downgraded to the
+    open-data reader: silently ignoring a bad credential is how a scoped officer ends up
+    reading the whole country without anyone noticing.
+    """
+    if credentials is not None:
+        return decode_token(credentials.credentials)
     if not config.REQUIRE_AUTH:
-        return Principal("anonymous", "ministry", None)
-    if credentials is None:
+        return ANONYMOUS
+    raise HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        "missing bearer token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def require_identity(principal: Principal, action: str) -> None:
+    """Refuse an action that must carry a name. Writes, in practice.
+
+    Reading is open when `REQUIRE_AUTH` is off — this is public expenditure data. Writing
+    a field verification is not reading: it is one officer putting their name to what they
+    saw, and an unattributed one is not evidence.
+    """
+    if principal is ANONYMOUS or principal.subject == ANONYMOUS.subject:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
-            "missing bearer token",
+            f"sign in to {action} — records are attributed to the officer who made them",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return decode_token(credentials.credentials)
 
 
 def require_scope(principal: Principal, row: dict, resource: str) -> None:

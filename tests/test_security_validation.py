@@ -198,3 +198,55 @@ def test_amount_and_stall_injections_are_detected_strongly(report: dict):
 def test_the_report_refuses_to_call_itself_a_fraud_rate(report: dict):
     assert "NOT a real-world fraud detection rate" in report["not_a_fraud_rate"]
     assert "no fraud labels exist" in report["not_a_fraud_rate"].lower()
+
+
+# --------------------------------------------------- identity on field records
+
+
+def test_a_presented_token_is_honoured_even_when_auth_is_optional(monkeypatch):
+    """The flag governs whether a badge is *required*, not whether we read the one given.
+
+    Getting this backwards attributed every field verification to "anonymous" regardless
+    of who was signed in, which is the one thing the verification store cannot tolerate.
+    """
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    monkeypatch.setattr(config, "REQUIRE_AUTH", False)
+    token = auth.issue_token("r.sharma", "state", "Bihar")
+    principal = auth.current_principal(
+        HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    )
+    assert principal.subject == "r.sharma"
+    assert principal.scope == "Bihar"
+
+
+def test_a_bad_token_is_rejected_not_quietly_downgraded(monkeypatch):
+    from fastapi import HTTPException
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    monkeypatch.setattr(config, "REQUIRE_AUTH", False)
+    with pytest.raises(HTTPException) as raised:
+        auth.current_principal(
+            HTTPAuthorizationCredentials(scheme="Bearer", credentials="not.a.token")
+        )
+    assert raised.value.status_code == 401
+
+
+def test_no_token_still_reads_the_open_data(monkeypatch):
+    monkeypatch.setattr(config, "REQUIRE_AUTH", False)
+    assert auth.current_principal(None).subject == "anonymous"
+
+
+def test_an_unattributed_verification_is_refused():
+    """Reading is public. Putting your name to what you saw requires a name."""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as raised:
+        auth.require_identity(auth.ANONYMOUS, "record a field verification")
+    assert raised.value.status_code == 401
+    assert "attributed" in raised.value.detail
+
+
+def test_a_signed_in_officer_may_record_one():
+    auth.require_identity(auth.decode_token(auth.issue_token("r.sharma", "state", "Bihar")),
+                          "record a field verification")

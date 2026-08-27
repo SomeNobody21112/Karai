@@ -132,7 +132,10 @@ def test_every_chat_tool_returns_valid_json(a_case):
 
     args = {
         "t_case_detail": {"work_ref": a_case["work_ref"]},
+        "t_work_lookup": {"work_ref": a_case["work_ref"]},
         "t_search_works": {"query": "road"},
+        "t_agency_profile": {"agency": "SARAN"},
+        "t_mp_profile": {"mp_name": "a"},
     }
     for name, fn in chat.TOOL_FUNCS.items():
         result = fn(**args.get(name, {}))
@@ -184,7 +187,49 @@ def test_offline_chat_resolves_a_work_reference(a_case):
     ref = a_case["work_ref"]
     answer = chat.answer_offline(f"tell me about {ref}")
     assert ref in answer["text"]
-    assert "t_case_detail" in answer["tools_used"]
+    assert "t_work_lookup" in answer["tools_used"]
+
+
+def test_offline_chat_resolves_a_work_that_was_never_surfaced(corpus):
+    """The assistant covers the whole portfolio, not only the works it flagged.
+
+    Answering only for leads would mean an officer asking about an ordinary work is told
+    it does not exist — which reads as "not in the data" when the truth is "nothing wrong
+    with it".
+    """
+    from mplads import chat
+
+    ordinary = corpus[corpus["band"] == "NONE"]["work_ref"].iloc[0]
+    answer = chat.answer_offline(f"tell me about {ordinary}")
+    assert ordinary in answer["text"]
+    assert "not surfaced as a lead" in answer["text"].lower()
+
+
+def test_offline_chat_searches_the_whole_portfolio_not_just_leads(corpus):
+    from mplads import chat
+    import json as _json
+
+    result = _json.loads(chat.t_search_works("road", limit=5))
+    leads = len([w for w in chat._store().worklist if "road" in (w["description"] or "").lower()])
+    assert result["matches"] > leads, (
+        "search returned no more than the lead list — it is not reaching the corpus"
+    )
+    assert result["matches"] <= len(corpus)
+
+
+def test_offline_chat_reads_field_verifications_live(tmp_path, monkeypatch):
+    """A record entered a moment ago must be answerable without rebuilding anything."""
+    from mplads import chat, field
+
+    monkeypatch.setattr(field, "DB", tmp_path / "v.sqlite")
+    monkeypatch.setattr(field, "PHOTOS", tmp_path / "photos")
+
+    before = chat.answer_offline("what have officers verified in the field?")
+    assert "no site verifications" in before["text"].lower()
+
+    field.record("MP1-W1", "NOT_STARTED", actor="auditor", role="auditor")
+    after = chat.answer_offline("what have officers verified in the field?")
+    assert "1 verification record" in after["text"]
 
 
 def test_offline_chat_corrects_the_exposure_misconception():
@@ -202,10 +247,12 @@ def test_offline_chat_admits_what_the_data_cannot_answer():
 
 
 def test_offline_chat_says_so_when_it_cannot_help():
+    """It names what it can answer instead of apologising for what it is."""
     from mplads import chat
 
-    answer = chat.answer_offline("what is the capital of France")
-    assert "offline mode" in answer["text"]
+    answer = chat.answer_offline("qqqq zzzz wwww")
+    assert "could not find anything matching" in answer["text"]
+    assert "MP3018356-W86316" in answer["text"], "no example reference to work from"
 
 
 def test_no_chat_answer_can_assert_wrongdoing():

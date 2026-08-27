@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Band, Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
+import { authority, prettify, riskFill, sevFill } from "../severity.js";
 import Insight from "../components/Insight.jsx";
+import FieldVerify from "../components/FieldVerify.jsx";
 
 const FAM_ICON = {
   amount: "₹", duration: "⏱", lifecycle: "⚑",
@@ -30,6 +32,7 @@ export default function CaseFile() {
 
   if (err) return (<><Topbar title="Case File" /><div className="content"><div className="empty">{err}</div></div></>);
   if (!c) return (<><Topbar title="Case File" /><div className="content"><Loading /></div></>);
+  if (c.surfaced === false) return <ClearRecord work={c} />;
 
   const id = c.identity;
   return (
@@ -77,7 +80,7 @@ export default function CaseFile() {
           <div className="card stat">
             <div className="label">Completion risk</div>
             <div className="value" style={{ fontSize: 24 }}>{Math.round(c.risk.completion_risk * 100)}%</div>
-            <Meter value={c.risk.completion_risk} color="#9a6b1f" />
+            <Meter value={c.risk.completion_risk} color={riskFill(c.risk.completion_risk)} />
             <div className="foot">basis: {c.risk.basis}</div>
           </div>
           <div className="card stat">
@@ -118,9 +121,9 @@ export default function CaseFile() {
 
             {c.early_warning && c.early_warning.level !== "LOW" && (
               <div className="card" style={{ marginBottom: 16 }}>
-                <h3>Early warning — {c.early_warning.level}</h3>
-                <Meter value={c.early_warning.score}
-                  color={c.early_warning.level === "CRITICAL" ? "#a8452a" : "#9a6b1f"} />
+                <h3>Early warning</h3>
+                <Band value={c.early_warning.level} />
+                <Meter value={c.early_warning.score} color={sevFill(c.early_warning.level)} />
                 <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
                   {c.early_warning.reason}
                 </p>
@@ -134,8 +137,8 @@ export default function CaseFile() {
                   <div key={i} style={{ marginBottom: 10 }}>
                     <div style={{ fontWeight: 620, fontSize: 13 }}>
                       {f.check}
-                      <span className="fam-tag">{f.authority.replace("_", " ")}</span>
-                      <span className="fam-tag">{f.severity}</span>
+                      <span className="fam-tag">{authority(f.authority).label}</span>
+                      <Band value={f.severity} />
                     </div>
                     <div className="muted" style={{ fontSize: 12 }}>{f.meaning}</div>
                   </div>
@@ -148,13 +151,15 @@ export default function CaseFile() {
                 <h3>Near-duplicate candidate</h3>
                 <dl className="kv">
                   <dt>Matched work</dt>
-                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} style={{ color: "#9a6b1f" }}>
+                  <dd><Link to={`/case/${c.duplicate.partner_work_ref}`} className="link">
                     {c.duplicate.partner_work_ref}</Link></dd>
                   <dt>Similarity</dt><dd>{(c.duplicate.similarity * 100).toFixed(1)}%</dd>
-                  <dt>Classification</dt><dd>{c.duplicate.classification.replace("_", " ")}</dd>
+                  <dt>Classification</dt><dd>{prettify(c.duplicate.classification)}</dd>
                 </dl>
               </div>
             )}
+
+            <FieldVerify workRef={ref} />
 
             <div className="action-panel">
               <div className="label">Recommended next step</div>
@@ -169,6 +174,67 @@ export default function CaseFile() {
           </div>
         </div>
         </Reveal>
+      </div>
+    </>
+  );
+}
+
+
+/**
+ * A work nothing fired on — 173,288 of the 210,993.
+ *
+ * These used to 404, which made "we checked and it is fine" look identical to "no such
+ * work", and left them unverifiable. That mattered more than it sounds: if only flagged
+ * works can be visited, every field record ever written is about a work the system
+ * already suspected, and a label set with no negatives in it cannot correct anything.
+ */
+function ClearRecord({ work }) {
+  const id = work.identity;
+  return (
+    <>
+      <Topbar title="Case File" sub={work.work_ref}
+        right={<span className="pill pill-clear">Not surfaced</span>} />
+      <div className="content">
+        <Link to="/worklist" className="back">← Back to worklist</Link>
+
+        <div className="card clear-note">
+          <strong>Nothing was flagged on this work.</strong> It sits inside the norms of
+          its peer group on every measure we compute — amount, duration, lifecycle
+          conformance, behaviour and duplication. There is no case to answer here and no
+          reviewer is needed.
+        </div>
+
+        <div className="case-head">
+          <div>
+            <div className="case-title">{id.description || "MPLADS Work"}</div>
+            <div className="case-meta">
+              {id.state} · {id.constituency} · {id.implementing_agency}
+            </div>
+            <div className="case-meta">
+              MP: {id.mp_name} · Recommended {id.recommendation_date || "—"} ·{" "}
+              {id.is_completed ? `Completed ${id.completion_date || ""}` : "Open"}
+            </div>
+          </div>
+        </div>
+
+        <Reveal><div className="grid cols-2" style={{ margin: "20px 0 18px" }}>
+          <div className="card stat">
+            <div className="label">Recommended</div>
+            <div className="value" style={{ fontSize: 24 }}>{rupees(id.recommended_amount)}</div>
+          </div>
+          <div className="card stat">
+            <div className="label">Work type</div>
+            <div className="value" style={{ fontSize: 17 }}>{work.archetype.label}</div>
+            <div className="foot">learned from description, not declared</div>
+          </div>
+        </div></Reveal>
+
+        <FieldVerify workRef={work.work_ref} />
+
+        <div className="card next-step">
+          <div className="section-label">Recommended next step</div>
+          <p>{work.recommended_next_step}</p>
+        </div>
       </div>
     </>
   );

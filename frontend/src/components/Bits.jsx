@@ -1,3 +1,5 @@
+import { sev } from "../severity.js";
+
 export function Topbar({ title, sub, right }) {
   return (
     <div className="topbar">
@@ -10,8 +12,21 @@ export function Topbar({ title, sub, right }) {
   );
 }
 
-export function Band({ value }) {
-  return <span className={`badge ${value}`}>{value}</span>;
+/**
+ * A severity level, shown three ways at once: colour, glyph and its written label.
+ * Colour is the redundant channel here, never the load-bearing one — red and amber
+ * collapse together under deuteranopia, so the shape and the word are what a
+ * reviewer actually reads.
+ */
+export function Band({ value, label }) {
+  const level = String(value || "").toUpperCase();
+  const { glyph } = sev(level);
+  return (
+    <span className={`badge sev ${level}`} title={`Severity: ${label || value}`}>
+      <i className="glyph" aria-hidden="true">{glyph}</i>
+      {label || value}
+    </span>
+  );
 }
 
 export function Loading({ label = "Loading intelligence" }) {

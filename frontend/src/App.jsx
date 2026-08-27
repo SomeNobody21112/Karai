@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Overview from "./pages/Overview.jsx";
 import Worklist from "./pages/Worklist.jsx";
@@ -15,6 +15,9 @@ import { useScrollProgress } from "./hooks.js";
 import { LanguageSwitcher } from "./I18nContext.jsx";
 import Chat from "./components/Chat.jsx";
 import Logo from "./components/Logo.jsx";
+import Login from "./pages/Login.jsx";
+import { useAuth } from "./AuthContext.jsx";
+import { Topbar } from "./components/Bits.jsx";
 import { useI18n } from "./I18nContext.jsx";
 
 const NAV = [
@@ -86,13 +89,70 @@ function Sidebar() {
   );
 }
 
-/** Scroll to top whenever the route changes — dashboards should not inherit scroll. */
+/**
+ * Scroll to top whenever the route changes — dashboards should not inherit scroll.
+ *
+ * `"instant" in window` was checking for a property nothing defines, so it always
+ * fell through to "auto", which honours `html { scroll-behavior: smooth }` and
+ * animated the jump. "instant" is the valid keyword and is what was intended.
+ */
 function ScrollReset() {
   const { pathname } = useLocation();
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [pathname]);
   return null;
+}
+
+/** An unknown URL used to render the shell with an empty body and no explanation. */
+function NotFound() {
+  const { t } = useI18n();
+  const { pathname } = useLocation();
+  return (
+    <>
+      <Topbar title={t("notFound.title", "Page not found")} sub={pathname} />
+      <div className="content">
+        <div className="empty">
+          {t("notFound.body", "There is nothing at this address.")}{" "}
+          <Link to="/overview" className="link">
+            {t("notFound.cta", "Go to the National Overview")}
+          </Link>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SessionChip() {
+  const { user, logout } = useAuth();
+  if (!user) {
+    return <NavLink to="/login" className="btn" style={{ padding: "6px 14px" }}>Sign in</NavLink>;
+  }
+  return (
+    <span className="session-chip">
+      <b>{user.name}</b>
+      <button onClick={logout} title="Sign out">Sign out</button>
+    </span>
+  );
+}
+
+function ScopeNote() {
+  const { user } = useAuth();
+  if (!user) {
+    return (
+      <span className="muted scope-note">
+        Changing the stakeholder view reframes the same evidence — it grants nothing.
+        Sign in to record a field verification.
+      </span>
+    );
+  }
+  return (
+    <span className="muted scope-note">
+      Signed in as <b>{user.role}</b>
+      {user.scope ? <> · limited to <b>{user.scope}</b></> : <> · unrestricted jurisdiction</>}
+      {" "}· every action is written to the audit log.
+    </span>
+  );
 }
 
 function Shell() {
@@ -100,14 +160,16 @@ function Shell() {
   const { t } = useI18n();
   const progress = useScrollProgress();
   const isLanding = pathname === "/";
+  const isLogin = pathname === "/login";
 
   return (
     <>
       <div className="scroll-progress" style={{ width: `${progress * 100}%` }} />
       <ScrollReset />
-      {isLanding ? (
+      {isLanding || isLogin ? (
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
         </Routes>
       ) : (
         <div className="shell">
@@ -118,12 +180,11 @@ function Shell() {
                 {t("shell.stakeholder", "Stakeholder view")}
               </span>
               <RoleSwitcher />
-              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
                 <LanguageSwitcher />
+                <SessionChip />
               </div>
-              <span className="muted" style={{ fontSize: 11 }}>
-                {t("shell.roleSim", "Role simulation — no authentication in this prototype")}
-              </span>
+              <ScopeNote />
             </div>
             <Routes>
               <Route path="/overview" element={<Overview />} />
@@ -135,6 +196,7 @@ function Shell() {
               <Route path="/transparency" element={<Transparency />} />
               <Route path="/how" element={<HowItWorks />} />
               <Route path="/case/:ref" element={<CaseFile />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
             <Chat />
           </div>

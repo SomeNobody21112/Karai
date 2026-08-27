@@ -10,12 +10,19 @@ import { usePointerSpotlight } from "../hooks.js";
 import { useRole } from "../RoleContext.jsx";
 import Insight from "../components/Insight.jsx";
 import { useI18n } from "../I18nContext.jsx";
+import { sev, sevFill } from "../severity.js";
 
-const BAND_COLOR = { HIGH: "#a8452a", MEDIUM: "#9a6b1f", LOW: "#a8452a", NONE: "#ddd5c6" };
 const TIP = {
   background: "#ffffff", border: "1px solid #ddd5c6", borderRadius: 3,
   fontSize: 12, boxShadow: "0 2px 10px rgba(60,48,30,.12)",
 };
+
+const BAND_LEGEND = [
+  { band: "HIGH", note: "3+ families" },
+  { band: "MEDIUM", note: "2" },
+  { band: "LOW", note: "1" },
+  { band: "NONE", note: "no signal" },
+];
 
 function Stat({ label, value, foot, accent, danger, delay = 0 }) {
   const ref = usePointerSpotlight();
@@ -38,7 +45,11 @@ export default function Overview() {
 
   useEffect(() => {
     setStats(null);
-    api.stats(params).then(setStats).catch(console.error);
+    let live = true;
+    api.stats(params)
+      .then((d) => { if (live) setStats(d); })
+      .catch((e) => { if (live) console.error(e); });
+    return () => { live = false; };
   }, [role, scope]);
 
   if (!stats)
@@ -129,14 +140,18 @@ export default function Overview() {
                   <Tooltip contentStyle={TIP} cursor={{ fill: "rgba(168,69,42,.06)" }}
                     formatter={(v) => [num(v), "Works"]} />
                   <Bar dataKey="works" radius={[2, 2, 0, 0]} animationDuration={1100}>
-                    {bands.map((b) => <Cell key={b.band} fill={BAND_COLOR[b.band] || "#ddd5c6"} />)}
+                    {bands.map((b) => <Cell key={b.band} fill={sevFill(b.band)} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <div className="legend">
-                <span><i className="dot" style={{ background: "#a8452a" }} /> HIGH · 3+ families</span>
-                <span><i className="dot" style={{ background: "#9a6b1f" }} /> MEDIUM · 2</span>
-                <span><i className="dot" style={{ background: "#a8452a" }} /> LOW · 1</span>
+                {BAND_LEGEND.map(({ band, note }) => (
+                  <span key={band}>
+                    <i className="dot" style={{ background: sevFill(band) }} />
+                    <b className="legend-glyph" aria-hidden="true">{sev(band).glyph}</b>
+                    {band} · {note}
+                  </span>
+                ))}
               </div>
             </div>
           </Reveal>

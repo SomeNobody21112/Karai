@@ -57,6 +57,89 @@ def _store():
     return store()
 
 
+def _corpus():
+    """All 210,993 works. Held by the API store, so both surfaces read one copy."""
+    return _store().corpus
+
+
+#: Where free text is looked for. Description first because that is what people search;
+#: the rest lets one query answer "Bihar", "SARAN", "Rajiv Pratap Rudy" or "Sports" without
+#: the asker having to know which kind of thing they typed.
+SEARCH_COLUMNS = ["work_description", "implementing_agency", "state_name",
+                  "constituency", "mp_name", "activity_category", "archetype_label"]
+
+
+@lru_cache(maxsize=1)
+def _haystack():
+    """One lowercased column holding every searchable field, built once.
+
+    Searching seven columns separately meant lowering and re-casting 1.4 million strings
+    per term — about three and a half seconds a question, which is not a conversation.
+    Flattening them into one string per work costs a couple of seconds at startup and
+    turns each term into a single pass.
+    """
+    frame = _corpus()
+    if frame.empty:
+        import pandas as pd
+
+        return pd.Series(dtype=str)
+    joined = frame["work_description"].fillna("").astype(str)
+    for column in SEARCH_COLUMNS[1:]:
+        joined = joined + " " + frame[column].astype(str)
+    return joined.str.lower()
+
+
+def warm() -> None:
+    """Build the search index up front, so the first question is as fast as the tenth."""
+    _haystack()
+
+
+#: Words that carry no signal in a description of a public work — every second row says
+#: "construction of". Dropping them keeps a natural question from narrowing to nothing.
+STOPWORDS = frozenset({
+    "of", "the", "a", "an", "in", "at", "for", "to", "and", "or", "on", "with", "by",
+    "work", "works", "construction", "show", "me", "list", "find", "all", "what", "which",
+    "how", "many", "much", "is", "are", "there", "any",
+})
+
+
+def _filter(frame, query: str = "", state: str = "", status: str = ""):
+    """Narrow the corpus the way every tool here needs to narrow it.
+
+    Terms are ANDed, not matched as a phrase. "school building" has to find a row that
+    says "building of school boundary wall" — a phrase match finds five rows in Bihar and
+    leaves an officer thinking the state built five schools.
+    """
+    mask = frame["work_ref"].notna()
+    terms = [t for t in query.strip().lower().split() if t and t not in STOPWORDS]
+    if terms:
+        haystack = _haystack()
+        for term in terms:
+            mask &= haystack.str.contains(term, regex=False)
+    if state:
+        mask &= frame["state_name"].astype(str).str.lower() == state.strip().lower()
+    if status == "open":
+        mask &= frame["is_open"].fillna(False).astype(bool)
+    elif status == "completed":
+        mask &= frame["is_completed"].fillna(False).astype(bool)
+    return frame[mask]
+
+
+def _flatten(text: object, limit: int = 160) -> str:
+    """Collapse a description to one readable line.
+
+    Work descriptions in this data routinely carry a pasted specification table — tabs,
+    newlines, a numbered parts list. Quoting one verbatim into a sentence produces
+    something unreadable, so whitespace is collapsed before it is trimmed.
+    """
+    flat = " ".join(str(text).split())
+    return flat if len(flat) <= limit else flat[: limit - 1].rstrip() + "\u2026"
+
+
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    return f"{count:,} {singular if count == 1 else (plural or singular + 's')}"
+
+
 def _fmt_rupees(value: float | None) -> str:
     if not value:
         return "unknown"
@@ -147,28 +230,175 @@ def t_case_detail(work_ref: str) -> str:
     })
 
 
-def t_search_works(query: str, limit: int = 5) -> str:
-    """Search surfaced leads by description or implementing agency text.
+def t_search_works(query: str, state: str = "", status: str = "", limit: int = 8) -> str:
+    """Search ALL 210,993 works by description, agency, category, MP or constituency.
+
+    This is the whole portfolio, not only the works surfaced as leads. Most questions an
+    officer asks are about ordinary works — what a state recommended, what an agency
+    builds, what a category costs — and answering those from the lead list alone would
+    silently describe 18% of the country as if it were all of it.
 
     Args:
-        query: Free text, e.g. "solar street light" or "Saran".
+        query: Free text, e.g. "solar street light", "school building", "Saran".
+        state: Optional state name to narrow to, e.g. "Bihar".
+        status: "", "open" or "completed".
         limit: How many to return, 1 to 20.
     """
-    needle = query.lower()
+    frame = _corpus()
+    if frame.empty:
+        return json.dumps({"matches": 0, "results": [], "note": "corpus not built"})
+
     limit = max(1, min(int(limit), 20))
-    hits = [
-        r for r in _store().worklist
-        if needle in (r.get("description") or "").lower()
-        or needle in (r.get("implementing_agency") or "").lower()
-        or needle in (r.get("state") or "").lower()
-    ][:limit]
+    hits = _filter(frame, query=query, state=state, status=status)
+    # Ranked by audit return-on-investment so the most worth-checking come first; ties
+    # break on work_ref so the same question always gives the same answer.
+    top = hits.sort_values(["audit_roi", "work_ref"], ascending=[False, True]).head(limit)
     return json.dumps({
-        "matches": len(hits),
+        "matches": int(len(hits)),
+        "total_recommended_rupees": float(hits["recommended_amount"].sum()),
+        "surfaced_as_leads": int((hits["band"] != "NONE").sum()),
         "results": [
-            {"work_ref": r["work_ref"], "description": (r.get("description") or "")[:160],
-             "state": r.get("state"), "band": r.get("band"),
-             "exposure_rupees": r.get("exposure_rupees")}
-            for r in hits
+            {"work_ref": r.work_ref,
+             "description": _flatten(r.work_description),
+             "state": str(r.state_name), "constituency": str(r.constituency),
+             "amount_rupees": float(r.recommended_amount),
+             "status": "completed" if r.is_completed else "open",
+             "band": str(r.band)}
+            for r in top.itertuples()
+        ],
+    })
+
+
+def t_work_lookup(work_ref: str) -> str:
+    """Look up ANY work by its reference, whether or not it was surfaced as a lead.
+
+    Args:
+        work_ref: e.g. MP3018356-W86316.
+    """
+    if _store().cases_by_ref.get(work_ref.upper()):
+        return t_case_detail(work_ref)
+
+    frame = _corpus()
+    row = frame[frame["work_ref"] == work_ref.upper()]
+    if row.empty:
+        return json.dumps({"found": False,
+                           "note": work_ref + " is not a work in this portfolio"})
+    r = row.iloc[0]
+    return json.dumps({
+        "found": True, "work_ref": r["work_ref"], "surfaced_as_lead": False,
+        "description": _flatten(r["work_description"], 300),
+        "state": str(r["state_name"]), "constituency": str(r["constituency"]),
+        "implementing_agency": str(r["implementing_agency"]), "mp": str(r["mp_name"]),
+        "category": str(r["activity_category"]), "archetype": str(r["archetype_label"]),
+        "amount_rupees": float(r["recommended_amount"]),
+        "status": "completed" if r["is_completed"] else "open",
+        "compliance_flags": int(r["compliance_flags"] or 0),
+        "note": "Nothing was flagged on this work. It sits inside its peer norms.",
+    })
+
+
+def t_agency_profile(agency: str) -> str:
+    """One implementing agency's whole portfolio: works, money, completion, leads.
+
+    Args:
+        agency: Full or partial agency name, e.g. "SARAN".
+    """
+    frame = _corpus()
+    match = frame[frame["implementing_agency"].astype(str).str.contains(
+        agency.strip(), case=False, regex=False)]
+    if match.empty:
+        return json.dumps({"found": False, "note": "no agency matching " + agency})
+    return json.dumps({
+        "found": True,
+        "agencies_matched": sorted(match["implementing_agency"].astype(str).unique())[:5],
+        "works": int(len(match)),
+        "total_recommended_rupees": float(match["recommended_amount"].sum()),
+        "completed": int(match["is_completed"].sum()),
+        "completion_rate": round(float(match["is_completed"].mean()), 3),
+        "surfaced_as_leads": int((match["band"] != "NONE").sum()),
+        "high_confidence_leads": int((match["band"] == "HIGH").sum()),
+        "exposure_rupees": float(match["rs_exposure"].sum()),
+    })
+
+
+def t_mp_profile(mp_name: str) -> str:
+    """One Member of Parliament's recommended works in aggregate.
+
+    Reports the portfolio, never a judgement about the person. An MP recommends works;
+    implementing agencies execute them.
+
+    Args:
+        mp_name: Full or partial name.
+    """
+    frame = _corpus()
+    match = frame[frame["mp_name"].astype(str).str.contains(
+        mp_name.strip(), case=False, regex=False)]
+    if match.empty:
+        return json.dumps({"found": False, "note": "no MP matching " + mp_name})
+    return json.dumps({
+        "found": True,
+        "names_matched": sorted(match["mp_name"].astype(str).unique())[:5],
+        "works": int(len(match)),
+        "constituencies": sorted(match["constituency"].astype(str).unique())[:5],
+        "total_recommended_rupees": float(match["recommended_amount"].sum()),
+        "completion_rate": round(float(match["is_completed"].mean()), 3),
+        "surfaced_as_leads": int((match["band"] != "NONE").sum()),
+        "caveat": "Recommending a work is not executing it. Delays and anomalies belong "
+                  "to the implementing agency unless something says otherwise.",
+    })
+
+
+def t_category_breakdown(limit: int = 12) -> str:
+    """The official permissible-works categories by volume and money.
+
+    Args:
+        limit: How many categories, 1 to 40.
+    """
+    frame = _corpus()
+    if frame.empty:
+        return json.dumps([])
+    grouped = frame.groupby("activity_category", observed=True).agg(
+        works=("work_ref", "size"),
+        rupees=("recommended_amount", "sum"),
+        completion_rate=("is_completed", "mean"),
+        leads=("band", lambda b: int((b != "NONE").sum())),
+    ).sort_values("works", ascending=False).head(max(1, min(int(limit), 40)))
+    return json.dumps([
+        {"category": str(name), "works": int(r.works), "rupees": float(r.rupees),
+         "completion_rate": round(float(r.completion_rate), 3), "leads": int(r.leads)}
+        for name, r in grouped.iterrows()
+    ])
+
+
+def t_field_verifications(work_ref: str = "") -> str:
+    """What officers found when they actually went and looked.
+
+    Read live from the verification store on every call, so a record entered a moment ago
+    is answerable immediately — nothing is cached and nothing needs rebuilding.
+
+    Args:
+        work_ref: Optional. A specific work, or blank for recent activity portfolio-wide.
+    """
+    from mplads import field
+
+    if work_ref:
+        rows = field.for_work(work_ref.upper())
+        return json.dumps({
+            "work_ref": work_ref.upper(), "verifications": len(rows),
+            "records": [
+                {"outcome": r["outcome"], "notes": r["notes"], "by": r["actor"],
+                 "role": r["role"], "when": r["created_at"][:10],
+                 "demonstration_record": bool(r.get("demo"))}
+                for r in rows
+            ],
+        })
+    return json.dumps({
+        "readiness": field.label_readiness(),
+        "photo_reuse": field.photo_reuse_report(),
+        "recent": [
+            {"work_ref": r["work_ref"], "outcome": r["outcome"], "by": r["actor"],
+             "when": r["created_at"][:10], "demonstration_record": bool(r.get("demo"))}
+            for r in field.recent(8)
         ],
     })
 
@@ -235,7 +465,12 @@ TOOL_FUNCS = {
     "t_portfolio_summary": t_portfolio_summary,
     "t_top_leads": t_top_leads,
     "t_case_detail": t_case_detail,
+    "t_work_lookup": t_work_lookup,
     "t_search_works": t_search_works,
+    "t_agency_profile": t_agency_profile,
+    "t_mp_profile": t_mp_profile,
+    "t_category_breakdown": t_category_breakdown,
+    "t_field_verifications": t_field_verifications,
     "t_state_breakdown": t_state_breakdown,
     "t_compliance_summary": t_compliance_summary,
     "t_duplicate_summary": t_duplicate_summary,
@@ -308,103 +543,242 @@ def answer(question: str, history: list[dict] | None = None, language: str = "en
 WORK_REF = re.compile(r"\bMP\d+-W\d+\b", re.I)
 
 
-def answer_offline(question: str) -> dict:
-    """Deterministic keyword router over the same tools. No model, no credits, no guessing.
+def _states() -> dict[str, str]:
+    """Lowercased state name to canonical, for spotting a state inside a question."""
+    frame = _corpus()
+    if frame.empty:
+        return {}
+    return {str(s).lower(): str(s) for s in frame["state_name"].dropna().unique()}
 
-    This is not a pretend chatbot — it genuinely answers the common questions from real
-    data. It simply cannot handle a phrasing it was not written for, and says so.
+
+def answer_offline(question: str) -> dict:
+    """Deterministic router over the same tools and the same 210,993 works.
+
+    No model, no credits, no guessing. This is not a decorative fallback — it is what runs
+    when there is no API key, and it answers from the real corpus rather than apologising.
+    It cannot infer what you meant, only what you said, and when it genuinely cannot match
+    a question it searches the portfolio for the words in it and reports what it found.
     """
     q = question.lower()
     store = _store()
     n = store.stats.get("national", {})
 
+    def has(*words: str) -> bool:
+        return any(w in q for w in words)
+
+    # --- a specific work, lead or not
     ref = WORK_REF.search(question)
     if ref:
-        case = store.cases_by_ref.get(ref.group(0).upper())
-        if not case:
-            return {"text": f"{ref.group(0)} is not among the surfaced leads.",
-                    "tools_used": ["t_case_detail"], "source": "offline"}
-        identity = case["identity"]
-        reasons = "; ".join(e["signal"] for e in case.get("evidence", []))
-        return {
-            "text": (
-                f"{case['work_ref']} — {identity.get('description')} in "
-                f"{identity.get('state')}. Recommended {_fmt_rupees(identity.get('recommended_amount'))}, "
-                f"exposure {_fmt_rupees(case.get('exposure_rupees'))}, confidence "
-                f"{case.get('confidence_band')} from {case.get('n_signal_families')} independent "
-                f"signal families ({reasons}). {case.get('recommended_next_step')}"
-            ),
-            "tools_used": ["t_case_detail"], "source": "offline",
-        }
+        return _answer_work(ref.group(0).upper())
 
-    def has(*words): return any(w in q for w in words)
+    # --- what officers found in the field, read live
+    if has("verification", "verified", "site visit", "field", "ground truth", "officer found"):
+        return _answer_field()
+
+    if has("photo", "photograph", "picture", "image", "ocr", "scan", "board"):
+        return _answer_photos()
+
+    # --- a named state
+    for lowered, canonical in _states().items():
+        if lowered in q and len(lowered) > 4:
+            return _answer_state(canonical)
 
     if has("how many lead", "how many case", "leads are there", "number of lead"):
-        return {"text": (
-            f"{n.get('surfaced_leads'):,} works were surfaced for review — "
-            f"{(n.get('bands') or {}).get('HIGH'):,} at HIGH confidence (three or more "
-            f"independent signal families agreed) and "
-            f"{(n.get('bands') or {}).get('MEDIUM'):,} at MEDIUM (two)."
-        ), "tools_used": ["t_portfolio_summary"], "source": "offline"}
+        bands = n.get("bands") or {}
+        return _said(
+            f"{n.get('surfaced_leads'):,} works were surfaced for review out of "
+            f"{n.get('total_works'):,} — {bands.get('HIGH'):,} at HIGH confidence (three or "
+            f"more independent signal families agreed) and {bands.get('MEDIUM'):,} at "
+            f"MEDIUM (two). The other {n.get('total_works', 0) - n.get('surfaced_leads', 0):,} "
+            f"sit inside their peer norms and were not surfaced.",
+            "t_portfolio_summary")
 
     if has("exposure", "money at risk", "at risk"):
-        return {"text": (
+        return _said(
             f"Exposure at risk is {_fmt_rupees(n.get('total_exposure_rupees'))}. That is the "
-            f"recommended amount multiplied by the chance a work does not finish — money that "
-            f"may be tied up in works that stall. It is not loss, not theft, and not missing "
-            f"money."
-        ), "tools_used": ["t_portfolio_summary"], "source": "offline"}
+            f"recommended amount multiplied by the chance a work does not finish — money "
+            f"that may be tied up in works that stall. It is not loss, not theft, and not "
+            f"missing money.",
+            "t_portfolio_summary")
 
-    if has("top", "highest", "worst", "biggest", "priority"):
+    if has("top", "highest", "worst", "biggest", "priority", "start with"):
         rows = store.worklist[:3]
         listed = " ".join(
-            f"{r['work_ref']} ({r.get('state')}, {_fmt_rupees(r.get('exposure_rupees'))} exposure)."
+            f"{r['work_ref']} ({r.get('state')}, "
+            f"{_fmt_rupees(r.get('exposure_rupees'))} exposure)."
             for r in rows
         )
-        return {"text": f"The three highest-ranked leads by Audit-ROI are: {listed}",
-                "tools_used": ["t_top_leads"], "source": "offline"}
+        return _said(f"The three highest-ranked leads by Audit-ROI are: {listed}",
+                     "t_top_leads")
 
     if has("duplicate", "repeat", "same work", "copied"):
         d = store.stats.get("duplicates", {})
-        return {"text": (
+        return _said(
             f"We found {d.get('total_pairs'):,} semantically similar description pairs. "
             f"Repeated descriptions are normal in this scheme, so only "
-            f"{d.get('concerning_pairs'):,} are treated as concerning — near-identical, from "
-            f"the same implementing agency, for a near-identical amount."
-        ), "tools_used": ["t_duplicate_summary"], "source": "offline"}
+            f"{d.get('concerning_pairs'):,} are treated as concerning — near-identical, "
+            f"from the same implementing agency, for a near-identical amount.",
+            "t_duplicate_summary")
 
-    if has("expenditure", "spent", "cost overrun", "payment", "photo", "progress %"):
-        return {"text": (
+    if has("category", "categories", "kind of work", "type of work", "what gets built"):
+        rows = json.loads(t_category_breakdown(4))
+        listed = "; ".join(
+            f"{r['category']} ({r['works']:,} works, {_fmt_rupees(r['rupees'])})"
+            for r in rows
+        )
+        return _said(
+            f"The largest official permissible-works categories are: {listed}. There are "
+            f"118 categories in all, parsed out of ACTIVITY_NAME, covering 93% of works.",
+            "t_category_breakdown")
+
+    if has("expenditure", "spent", "cost overrun", "payment", "progress %"):
+        return _said(
             "The public data does not contain verified expenditure, payment tranches, cost "
-            "estimates, physical progress or downloadable photographs. We measured this rather "
-            "than assumed it: ACTUAL_AMOUNT equals the recommended amount on 98.35% of "
-            "completed works. So we report peer-relative amount anomalies and administrative "
-            "lifecycle progress instead, and say plainly what is missing."
-        ), "tools_used": ["t_data_limitations"], "source": "offline"}
+            "estimates or physical progress. We measured this rather than assumed it: "
+            "ACTUAL_AMOUNT equals the recommended amount on 98.35% of completed works. So "
+            "we report peer-relative amount anomalies and administrative lifecycle "
+            "progress instead, and say plainly what is missing.",
+            "t_data_limitations")
 
-    if has("model", "accuracy", "trained", "c-index", "silhouette"):
+    if has("model", "accuracy", "trained", "c-index", "silhouette", "machine learning"):
         m = store.metrics
-        return {"text": (
-            f"Three models are trained: clustering into "
-            f"{m.get('archetype_clustering', {}).get('k_chosen')} work types (silhouette "
-            f"{m.get('archetype_clustering', {}).get('silhouette_at_chosen_k')} — a separation "
+        clustering = m.get("archetype_clustering", {})
+        return _said(
+            f"Three models are trained: clustering into {clustering.get('k_chosen')} work "
+            f"types (silhouette {clustering.get('silhouette_at_chosen_k')} — a separation "
             f"measure, never accuracy), a Cox survival model for completion risk (held-out "
-            f"C-index {m.get('completion_risk', {}).get('c_index_heldout')}), and an outlier "
-            f"detector. None of them predicts wrongdoing — no such labels exist in this "
-            f"data, so nothing could be learned from them."
-        ), "tools_used": ["t_model_metrics"], "source": "offline"}
+            f"C-index {m.get('completion_risk', {}).get('c_index_heldout')}), and an "
+            f"outlier detector. None of them predicts wrongdoing — no such labels exist in "
+            f"this data, so nothing could be learned from them.",
+            "t_model_metrics")
 
     if has("how many work", "total work", "how big", "scale", "overview", "summary"):
-        return {"text": (
+        return _said(
             f"The portfolio holds {n.get('total_works'):,} works worth "
-            f"{_fmt_rupees(n.get('total_recommended_rupees'))} across {n.get('states')} states "
-            f"and {n.get('implementing_agencies'):,} implementing agencies. "
-            f"{n.get('completed'):,} are complete and {n.get('open'):,} are still open."
-        ), "tools_used": ["t_portfolio_summary"], "source": "offline"}
+            f"{_fmt_rupees(n.get('total_recommended_rupees'))} across {n.get('states')} "
+            f"states and {n.get('implementing_agencies'):,} implementing agencies. "
+            f"{n.get('completed'):,} are complete and {n.get('open'):,} are still open.",
+            "t_portfolio_summary")
 
-    return {"text": (
-        "I can answer that once the API key has credits. Right now I am running in offline "
-        "mode, where I can tell you the portfolio totals, the top leads, exposure, duplicates, "
-        "the trained models, our data limitations, or the details of any work if you give me "
-        "its reference (for example MP3018356-W86316)."
-    ), "tools_used": [], "source": "offline"}
+    # --- last resort: search the corpus for the words actually in the question
+    return _answer_search(question)
+
+
+def _said(text: str, *tools: str) -> dict:
+    return {"text": text, "tools_used": list(tools), "source": "offline"}
+
+
+def _answer_work(ref: str) -> dict:
+    """One work — from its case file if it has one, from the corpus if it does not."""
+    case = _store().cases_by_ref.get(ref)
+    if case:
+        identity = case["identity"]
+        reasons = "; ".join(e["signal"] for e in case.get("evidence", []))
+        text = (
+            f"{case['work_ref']} — {_flatten(identity.get('description'))} in "
+            f"{identity.get('state')}. Recommended "
+            f"{_fmt_rupees(identity.get('recommended_amount'))}, exposure "
+            f"{_fmt_rupees(case.get('exposure_rupees'))}, confidence "
+            f"{case.get('confidence_band')} from {case.get('n_signal_families')} "
+            f"independent signal families ({reasons}). {case.get('recommended_next_step')}"
+        )
+    else:
+        found = json.loads(t_work_lookup(ref))
+        if not found.get("found"):
+            return _said(f"{ref} is not a work in this portfolio.", "t_work_lookup")
+        text = (
+            f"{ref} — {_flatten(found['description'], 140)} in {found['state']} "
+            f"({found['constituency']}), implemented by {found['implementing_agency']}. "
+            f"Recommended {_fmt_rupees(found['amount_rupees'])}, currently "
+            f"{found['status']}. It was not surfaced as a lead: nothing about it falls "
+            f"outside its peer norms."
+        )
+
+    visits = json.loads(t_field_verifications(ref))
+    if visits["verifications"]:
+        latest = visits["records"][0]
+        text += (f" An officer visited on {latest['when']} and recorded "
+                 f"{latest['outcome'].replace('_', ' ').lower()}.")
+    return _said(text, "t_work_lookup", "t_field_verifications")
+
+
+def _answer_state(state: str) -> dict:
+    frame = _filter(_corpus(), state=state)
+    leads = frame[frame["band"] != "NONE"]
+    return _said(
+        f"{state} holds {len(frame):,} works worth "
+        f"{_fmt_rupees(float(frame['recommended_amount'].sum()))}. "
+        f"{int(frame['is_completed'].sum()):,} are complete "
+        f"({frame['is_completed'].mean():.0%}). {len(leads):,} were surfaced for review, "
+        f"with {_fmt_rupees(float(leads['rs_exposure'].sum()))} of exposure. Ask about a "
+        f"specific work reference for the evidence behind any one of them.",
+        "t_search_works")
+
+
+def _answer_field() -> dict:
+    data = json.loads(t_field_verifications())
+    r = data["readiness"]
+    if not r["verifications"] and not r.get("demo_records_excluded"):
+        return _said(
+            "No site verifications have been recorded yet. Every score in this system is "
+            "a reasoned default because no dataset says which works turned out to be "
+            "problems — officers recording what they found on site is the only way that "
+            "ever changes.",
+            "t_field_verifications")
+    outcomes = ", ".join(
+        f"{k.replace('_', ' ').lower()} {v}" for k, v in r["by_outcome"].items()
+    ) or "none yet"
+    return _said(
+        f"{_plural(r['verifications'], 'verification record')} so far across "
+        f"{_plural(r['works_verified'], 'work')} ({outcomes}); {r['concerns_confirmed']} "
+        f"confirmed a concern on site. "
+        f"{_plural(r['demo_records_excluded'], 'demonstration record')} excluded from that "
+        f"count. {r['labels_needed_to_fit_weights']} more are needed before the weights "
+        f"could be fitted to what officers actually confirmed rather than reasoned "
+        f"defaults. Nothing is refitted until then and no accuracy is claimed.",
+        "t_field_verifications")
+
+
+def _answer_photos() -> dict:
+    data = json.loads(t_field_verifications())
+    reuse = data["photo_reuse"]
+    if reuse["shared_across_works"]:
+        first = reuse["clusters"][0]
+        return _said(
+            f"{reuse['photographs']} photographs have been submitted and "
+            f"{reuse['shared_across_works']} picture(s) appear under more than one work. "
+            f"The clearest is submitted for {' and '.join(first['works'])}. A perceptual "
+            f"hash catches this even when the file was resized or re-compressed, so the "
+            f"checksums differ. It is worth one question, not a conclusion — two phases of "
+            f"one road legitimately look identical from the roadside.",
+            "t_field_verifications")
+    return _said(
+        f"{_plural(reuse['photographs'], 'verification photograph')} submitted so far, "
+        f"and none appears under more than one work. Every upload is fingerprinted with a "
+        f"perceptual hash, which matches the same picture even after it has been resized "
+        f"or re-compressed — the checksum would not. Boards are also read automatically, "
+        f"so an officer does not type a reference number standing in a field.",
+        "t_field_verifications")
+
+
+def _answer_search(question: str) -> dict:
+    """Search the corpus for the words in the question. The honest last resort."""
+    result = json.loads(t_search_works(question, limit=3))
+    if not result.get("matches"):
+        return _said(
+            "I could not find anything matching that. I can tell you the portfolio "
+            "totals, the top leads, exposure, duplicates, the categories, any state, any "
+            "implementing agency, what officers have verified in the field, the trained "
+            "models, or the details of any work if you give me its reference — for "
+            "example MP3018356-W86316.",
+            )
+    listed = " ".join(
+        f"{r['work_ref']} ({r['state']}, {_fmt_rupees(r['amount_rupees'])}, {r['status']})."
+        for r in result["results"]
+    )
+    return _said(
+        f"{result['matches']:,} works match that, worth "
+        f"{_fmt_rupees(result['total_recommended_rupees'])} in total; "
+        f"{result['surfaced_as_leads']:,} of them were surfaced for review. The "
+        f"highest-ranked are: {listed}",
+        "t_search_works")

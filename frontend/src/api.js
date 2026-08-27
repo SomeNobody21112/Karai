@@ -1,7 +1,11 @@
 const base = "";
 
+let authToken = null;
+export function _setToken(tok) { authToken = tok; }
+const authHeaders = () => (authToken ? { Authorization: `Bearer ${authToken}` } : {});
+
 async function get(path) {
-  const res = await fetch(base + path);
+  const res = await fetch(base + path, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -16,12 +20,36 @@ export const api = {
   states: () => get("/api/states"),
   models: () => get("/api/models"),
   roles: () => get("/api/roles"),
+  setToken: _setToken,
+  login: (username, password) =>
+    fetch("/api/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }),
+  demoAccounts: () => get("/api/auth/accounts"),
+  ocr: (file, workRef) => {
+    const form = new FormData();
+    form.append("file", file);
+    // The work the officer is standing on, so a photograph already submitted for a
+    // *different* sanction is reported and one re-taken for this work is not.
+    if (workRef) form.append("work_ref", workRef);
+    return fetch("/api/ocr", { method: "POST", headers: authHeaders(), body: form })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); });
+  },
+  verifications: (ref) => get(`/api/verify/${encodeURIComponent(ref)}`),
+  verify: (ref, body) =>
+    fetch(`/api/verify/${encodeURIComponent(ref)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }),
+  fieldSummary: () => get("/api/field/summary"),
   languages: () => get("/api/languages"),
   chatCapabilities: () => get("/api/chat/capabilities"),
   chat: (body) =>
     fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     }).then((r) => {
       if (!r.ok) throw new Error(`${r.status}`);
@@ -57,12 +85,22 @@ export const api = {
   case: (ref) => get(`/api/case/${encodeURIComponent(ref)}`),
 };
 
+/**
+ * Indian-convention rupee figure. Large crore values are grouped, so the national
+ * total reads "₹11,565 Cr" rather than "₹11565.47 Cr" — and drops the paise, which
+ * are noise at that magnitude.
+ */
 export function rupees(n) {
   if (n == null) return "—";
-  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)} Cr`;
-  if (n >= 1e5) return `₹${(n / 1e5).toFixed(2)} L`;
-  if (n >= 1e3) return `₹${(n / 1e3).toFixed(0)}K`;
-  return `₹${Math.round(n)}`;
+  const grouped = (v, digits) =>
+    v.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (n >= 1e7) {
+    const cr = n / 1e7;
+    return `₹${grouped(cr, cr >= 1000 ? 0 : 2)} Cr`;
+  }
+  if (n >= 1e5) return `₹${grouped(n / 1e5, 2)} L`;
+  if (n >= 1e3) return `₹${grouped(n / 1e3, 0)}K`;
+  return `₹${grouped(Math.round(n), 0)}`;
 }
 
 export function num(n) {

@@ -1,25 +1,23 @@
 import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, num, rupees } from "../api.js";
-import { Loading, Topbar } from "../components/Bits.jsx";
+import { Band, Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
+import { TREND_LEVEL, prettify, sevFill } from "../severity.js";
 
-const STATE_STYLE = {
-  NORMAL: { c: "#a8452a", t: "Normal" },
-  EMERGING: { c: "#2f5d3f", t: "Emerging" },
-  GROWING: { c: "#2f5d3f", t: "Growing" },
-  STABLE: { c: "#a8452a", t: "Stable" },
-  DECLINING: { c: "#9a6b1f", t: "Declining" },
-  SUDDEN_CHANGE: { c: "#a8452a", t: "Sudden change" },
-  PERSISTENT_CHANGE: { c: "#9a6b1f", t: "Persistent change" },
-  INSUFFICIENT_HISTORY: { c: "#8a8175", t: "Insufficient history" },
+/** Warm parchment tooltip — matches the one on Overview. */
+const TIP = {
+  background: "#ffffff", border: "1px solid #ddd5c6", borderRadius: 3,
+  fontSize: 12, boxShadow: "0 2px 10px rgba(60,48,30,.12)",
 };
 
+/**
+ * A temporal classification, coloured by what it means for a reviewer rather than
+ * by how dramatic it sounds. "Normal" and "Stable" were previously painted the
+ * alarm colour, so the two reassuring states looked exactly like a sudden change.
+ */
 function Tag({ value }) {
-  const s = STATE_STYLE[value] || { c: "#8a8175", t: value };
-  return (
-    <span className="badge" style={{ color: s.c, background: "#f1ece1" }}>{s.t}</span>
-  );
+  return <Band value={TREND_LEVEL[value] || "NONE"} label={prettify(value)} />;
 }
 
 export default function Trends() {
@@ -54,7 +52,7 @@ export default function Trends() {
                 <CartesianGrid stroke="#f1ece1" vertical={false} />
                 <XAxis dataKey="period" stroke="#8a8175" fontSize={10} minTickGap={30} />
                 <YAxis stroke="#8a8175" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Tooltip contentStyle={TIP} cursor={{ stroke: "#ddd5c6" }} />
                 <Line type="monotone" dataKey="works" stroke="#a8452a" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -73,7 +71,7 @@ export default function Trends() {
                 <CartesianGrid stroke="#f1ece1" vertical={false} />
                 <XAxis dataKey="period" stroke="#8a8175" fontSize={10} minTickGap={30} />
                 <YAxis stroke="#8a8175" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #2a3752", borderRadius: 8, fontSize: 12 }} />
+                <Tooltip contentStyle={TIP} cursor={{ stroke: "#ddd5c6" }} />
                 <Line type="monotone" dataKey="median" stroke="#2f5d3f" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -100,7 +98,7 @@ export default function Trends() {
                   <td>{a.label}</td>
                   <td><Tag value={a.classification} /></td>
                   <td className="num">{num(a.recent_works)}</td>
-                  <td className="num" style={{ color: a.delta >= 0 ? "#2f5d3f" : "#9a6b1f" }}>
+                  <td className="num" style={{ color: a.delta >= 0 ? sevFill("LOW") : sevFill("MEDIUM") }}>
                     {a.delta >= 0 ? "+" : ""}{(a.delta * 100).toFixed(2)} pp
                   </td>
                 </tr>

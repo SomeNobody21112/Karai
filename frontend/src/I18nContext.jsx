@@ -63,7 +63,11 @@ export function LanguageSwitcher() {
         className="select"
         value={lang}
         onChange={(e) => setLang(e.target.value)}
-        title={meta.llm_available ? "Live translation" : "Translation needs an API key"}
+        // The interface is translated from a static table and never needs a network
+        // call. Only written briefings degrade without an API key — this used to
+        // claim the whole switcher was unavailable, which was never true.
+        title="Interface language"
+        aria-label="Interface language"
       >
         {Object.keys(meta.languages).map((code) => (
           <option key={code} value={code}>

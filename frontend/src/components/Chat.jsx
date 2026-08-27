@@ -34,6 +34,7 @@ export default function Chat() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef(null);
+  const inputRef = useRef(null);
   const nav = useNavigate();
   const { lang, t } = useI18n();
 
@@ -44,6 +45,16 @@ export default function Chat() {
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [turns, busy, open]);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  // Esc closes the panel, the way every other overlay on the web does.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   async function ask(question) {
     const q = question.trim();
@@ -65,6 +76,7 @@ export default function Chat() {
       ]);
     } finally {
       setBusy(false);
+      inputRef.current?.focus();
     }
   }
 
@@ -141,7 +153,8 @@ export default function Chat() {
               placeholder="Ask about a work, a state, or the numbers…"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              disabled={busy}
+              ref={inputRef}
+              readOnly={busy}
             />
             <button className="btn btn-primary" type="submit" disabled={busy || !draft.trim()}>
               Send
