@@ -3,6 +3,7 @@ import { api, num } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
 import { scoreFill, sev } from "../severity.js";
+import { useI18n } from "../I18nContext.jsx";
 
 /**
  * How far a number is from the raw record. Measured straight from government data
@@ -12,9 +13,9 @@ import { scoreFill, sev } from "../severity.js";
  * whole screen exists to draw.
  */
 const TYPE = {
-  "Direct measurement": { level: "LOW", t: "Measured" },
-  "Model-derived": { level: "MEDIUM", t: "Derived" },
-  Unavailable: { level: "HIGH", t: "Unavailable" },
+  "Direct measurement": { level: "LOW", key: "transparency.measured", t: "Measured" },
+  "Model-derived": { level: "MEDIUM", key: "transparency.derived", t: "Derived" },
+  Unavailable: { level: "HIGH", key: "transparency.unavailable", t: "Unavailable" },
 };
 
 /**
@@ -27,17 +28,18 @@ const CONFIDENCE = { High: "LOW", Medium: "MEDIUM", Low: "HIGH", None: "HIGH" };
 
 export default function Transparency() {
   const [d, setD] = useState(null);
+  const { t } = useI18n();
   useEffect(() => { api.transparency().then(setD).catch(console.error); }, []);
 
-  if (!d) return (<><Topbar title="Data Transparency" /><div className="content"><Loading /></div></>);
+  if (!d) return (<><Topbar title={t("transparency.title", "Data Transparency")} /><div className="content"><Loading /></div></>);
 
   const group = (type) => d.metrics.filter((m) => m.type === type);
 
   return (
     <>
-      <Topbar title="Data Transparency"
-        sub="What we measure, what we derive, and what the public data does not contain"
-        right={<span className="pill">{d.totals.unavailable_metrics} fields unavailable</span>} />
+      <Topbar title={t("transparency.title", "Data Transparency")}
+        sub={t("transparency.sub", "What we measure, what we derive, and what the public data does not contain")}
+        right={<span className="pill">{d.totals.unavailable_metrics} {t("transparency.fieldsUnavailable", "fields unavailable")}</span>} />
       <div className="content">
         <div className="hitl">
           <span>🔒</span>
@@ -46,29 +48,30 @@ export default function Transparency() {
 
         <Reveal><div className="grid cols-3">
           <div className="card stat">
-            <div className="label">Measured directly</div>
+            <div className="label">{t("transparency.measured", "Measured directly")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("LOW").ink }}>{d.totals.available_metrics}</div>
-            <div className="foot">straight from government records</div>
+            <div className="foot">{t("transparency.measuredFoot", "straight from government records")}</div>
           </div>
           <div className="card stat">
-            <div className="label">Model-derived</div>
+            <div className="label">{t("transparency.derived", "Model-derived")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("MEDIUM").ink }}>{d.totals.derived_metrics}</div>
-            <div className="foot">computed, with stated confidence</div>
+            <div className="foot">{t("transparency.derivedFoot", "computed, with stated confidence")}</div>
           </div>
           <div className="card stat">
-            <div className="label">Unavailable</div>
+            <div className="label">{t("transparency.unavailable", "Unavailable")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("HIGH").ink }}>{d.totals.unavailable_metrics}</div>
-            <div className="foot">absent from public data — not faked</div>
+            <div className="foot">{t("transparency.unavailableFoot", "absent from public data — not faked")}</div>
           </div>
         </div>
 
         </Reveal>
         {["Direct measurement", "Model-derived", "Unavailable"].map((type) => (
           <div key={type}>
-            <div className="section-title">{TYPE[type].t}</div>
+            <div className="section-title">{t(TYPE[type].key, TYPE[type].t)}</div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Metric</th><th>Source</th><th>Confidence</th><th>Note</th></tr></thead>
+                <thead><tr><th>{t("transparency.metric", "Metric")}</th><th>{t("transparency.source", "Source")}</th>
+                  <th>{t("transparency.confidenceCol", "Confidence")}</th><th>{t("transparency.note", "Note")}</th></tr></thead>
                 <tbody>
                   {group(type).map((m) => (
                     <tr key={m.metric}>
@@ -92,7 +95,7 @@ export default function Transparency() {
           </div>
         ))}
 
-        <div className="section-title">Field completeness (measured)</div>
+        <div className="section-title">{t("transparency.completeness", "Field completeness (measured)")}</div>
         <div className="card">
           {d.completeness.map((f) => (
             <div key={f.field} style={{ marginBottom: 10 }}>
@@ -106,10 +109,10 @@ export default function Transparency() {
           ))}
         </div>
 
-        <div className="section-title">Ground truth from the field</div>
+        <div className="section-title">{t("transparency.groundTruth", "Ground truth from the field")}</div>
         <GroundTruth />
 
-        <div className="section-title">Ready for restricted government data</div>
+        <div className="section-title">{t("transparency.readyFor", "Ready for restricted government data")}</div>
         <div className="card">
           <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
             The ingestion schema already carries typed, optional interfaces for the fields a
@@ -118,7 +121,7 @@ export default function Transparency() {
           </p>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Field</th><th>Type</th><th>What it would unlock</th></tr></thead>
+              <thead><tr><th>{t("transparency.field", "Field")}</th><th>{t("transparency.type", "Type")}</th><th>{t("transparency.wouldUnlock", "What it would unlock")}</th></tr></thead>
               <tbody>
                 {d.future_fields.map((f) => (
                   <tr key={f.field}>
@@ -146,6 +149,7 @@ export default function Transparency() {
  */
 function GroundTruth() {
   const [d, setD] = useState(null);
+  const { t } = useI18n();
   useEffect(() => { api.fieldSummary().then(setD).catch(() => setD({ error: true })); }, []);
 
   if (!d) return <div className="card"><Loading /></div>;
@@ -166,12 +170,12 @@ function GroundTruth() {
 
       <div className="grid cols-3" style={{ marginBottom: 16 }}>
         <div className="card stat">
-          <div className="label">Verifications recorded</div>
+          <div className="label">{t("transparency.verifications", "Verifications recorded")}</div>
           <div className="value" style={{ fontSize: 28 }}>{num(r.verifications)}</div>
           <div className="foot">across {num(r.works_verified)} works</div>
         </div>
         <div className="card stat">
-          <div className="label">Concerns confirmed on site</div>
+          <div className="label">{t("transparency.concernsConfirmed", "Concerns confirmed on site")}</div>
           <div className="value" style={{ fontSize: 28,
             color: r.concerns_confirmed > 0 ? sev("HIGH").ink : undefined }}>
             {num(r.concerns_confirmed)}
@@ -179,7 +183,7 @@ function GroundTruth() {
           <div className="foot">not started, not found or mismatched</div>
         </div>
         <div className="card stat">
-          <div className="label">Still needed to fit weights</div>
+          <div className="label">{t("transparency.stillNeeded", "Still needed to fit weights")}</div>
           <div className="value" style={{ fontSize: 28 }}>{num(r.labels_needed_to_fit_weights)}</div>
           <div className="foot">threshold is {num(target)} records</div>
         </div>
@@ -192,7 +196,7 @@ function GroundTruth() {
       {Object.keys(r.by_outcome).length > 0 && (
         <div className="table-wrap" style={{ marginBottom: 14 }}>
           <table>
-            <thead><tr><th>Outcome</th><th>Meaning</th><th style={{ textAlign: "right" }}>Records</th></tr></thead>
+            <thead><tr><th>{t("transparency.outcome", "Outcome")}</th><th>{t("transparency.meaning", "Meaning")}</th><th style={{ textAlign: "right" }}>Records</th></tr></thead>
             <tbody>
               {Object.entries(r.by_outcome).map(([k, n]) => (
                 <tr key={k}>
@@ -209,9 +213,60 @@ function GroundTruth() {
       <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.7 }}>
         {r.note} Records are immutable and attributed to the officer who made them; a
         correction is a new record, never an edit.
+        {r.demo_records_excluded > 0 && (
+          <> {num(r.demo_records_excluded)} record
+            {r.demo_records_excluded === 1 ? " was" : "s were"} seeded for the demonstration
+            walkthrough and {r.demo_records_excluded === 1 ? "is" : "are"} excluded from
+            every figure above.</>
+        )}
         {d.ocr_available
           ? " Photographs of site boards are read automatically so nobody re-types a reference number standing in a field."
           : " Photo reading is unavailable on this machine, so references are entered by hand."}
+      </p>
+
+      {d.photo_reuse && <PhotoForensics report={d.photo_reuse} />}
+    </div>
+  );
+}
+
+
+/**
+ * Photographs submitted for more than one work.
+ *
+ * A cryptographic hash answers "is this the same file", which anyone defeats by re-saving.
+ * A perceptual hash answers "is this the same picture" and survives re-compression,
+ * resizing and a change in brightness — which is how a recycled site photograph actually
+ * arrives. Reported here as a count, deliberately: the value of one instance comes from
+ * how rare it is.
+ */
+function PhotoForensics({ report }) {
+  return (
+    <div className="forensics">
+      <div className="forensics-head">
+        <span className="forensics-count">{num(report.photographs)}</span>
+        <span>photograph{report.photographs === 1 ? "" : "s"} submitted ·{" "}
+          <b className={report.shared_across_works ? "forensics-hit" : ""}>
+            {num(report.shared_across_works)}
+          </b>{" "}
+          appearing under more than one work
+        </span>
+      </div>
+
+      {report.clusters?.length > 0 && (
+        <div className="forensics-list">
+          {report.clusters.map((c) => (
+            <div key={c.photo} className="forensics-row">
+              <span className="fr-level">{c.level.replace(/_/g, " ").toLowerCase()}</span>
+              <span className="fr-works">{c.works.join("  ·  ")}</span>
+              <a className="fr-view" href={`/api/photo/${c.photo}`} target="_blank"
+                rel="noreferrer">view</a>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 10 }}>
+        {report.note}
       </p>
     </div>
   );

@@ -7,7 +7,7 @@ so they can never be mistaken for real site visits.
 
 Run:
 
-    .venv/Scripts/python.exe scripts/make_demo_data.py
+    .venv/Scripts/python.exe scripts/make_demo_data.py [--reset]
 
 Writes `demo/photos/*.png|jpg` and `demo/WALKTHROUGH.md`, and seeds the verification store.
 """
@@ -112,7 +112,32 @@ def pick_works() -> pd.DataFrame:
     return pd.concat([leads.head(2), ordinary.head(2)]).reset_index(drop=True)
 
 
-def main() -> None:
+def reset_store() -> None:
+    """Drop the whole verification store and start the walkthrough clean.
+
+    Individual records are immutable on purpose — that is what makes them evidence — so
+    there is no way to tidy one away, and no way to attach a photograph to a record written
+    before photographs existed. A stage that has been rehearsed on a dozen times needs a
+    reset, so this deletes the store outright rather than pretending rows can be edited.
+    Opt-in, and it takes everything with it.
+    """
+    targets = [field.DB]
+    if field.PHOTOS.exists():
+        targets += sorted(field.PHOTOS.iterdir())
+    try:
+        for path in targets:
+            path.unlink(missing_ok=True)
+    except PermissionError:
+        raise SystemExit(
+            "Cannot reset: the API server has the verification store open. Stop it "
+            "(Ctrl+C in its terminal) and run this again."
+        )
+    print("verification store reset - every record and photograph removed")
+
+
+def main(reset: bool = False) -> None:
+    if reset:
+        reset_store()
     PHOTOS.mkdir(parents=True, exist_ok=True)
     works = pick_works()
     lead, second_lead, ordinary_a, ordinary_b = (works.iloc[i] for i in range(4))
@@ -142,7 +167,8 @@ def main() -> None:
          "Faded and out of focus, the way boards actually look. Shows what the reader "
          "does when it is unsure rather than pretending it is not.")
 
-    seed_records(lead, second_lead, ordinary_a)
+    seed_records(lead, second_lead, ordinary_a,
+                 first_submission=(PHOTOS / "03-photo-first-submission.png").read_bytes())
     write_walkthrough(works, written)
 
     print("wrote {} photographs to {}".format(len(written), PHOTOS))
@@ -151,8 +177,13 @@ def main() -> None:
     print("\nwalkthrough: {}".format(DEMO / "WALKTHROUGH.md"))
 
 
-def seed_records(lead, second_lead, ordinary) -> None:
-    """A little history, so the screens are not empty. Marked as demonstration data."""
+def seed_records(lead, second_lead, ordinary, first_submission: bytes | None = None) -> None:
+    """A little history, so the screens are not empty. Marked as demonstration data.
+
+    The first half of the re-used-photograph pair is seeded deliberately: the presenter
+    uploads only the second one live, and the catch fires immediately instead of after two
+    minutes of setup nobody wants to watch.
+    """
     seeds = [
         (lead["work_ref"], "VERIFIED_IN_PROGRESS", "demo.nodal.bihar", "state",
          "Site visited with the block engineer. Foundation work under way; the board "
@@ -168,8 +199,12 @@ def seed_records(lead, second_lead, ordinary) -> None:
     for work_ref, outcome, actor, role, notes in seeds:
         if work_ref in existing:
             continue
+        photo = None
+        if first_submission is not None and work_ref == ordinary["work_ref"]:
+            photo = field.save_photo(first_submission, "03-photo-first-submission.png")
+            field.check_photo(first_submission, photo, work_ref, actor=actor)
         field.record(work_ref=work_ref, outcome=outcome, actor=actor, role=role,
-                     notes=notes, demo=True)
+                     notes=notes, photo=photo, demo=True)
         added += 1
     print("seeded {} demonstration verification records "
           "(excluded from the label count)".format(added))
@@ -243,4 +278,4 @@ def write_walkthrough(works: pd.DataFrame, written: list[tuple[str, str]]) -> No
 
 
 if __name__ == "__main__":
-    main()
+    main(reset="--reset" in sys.argv)

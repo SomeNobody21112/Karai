@@ -303,3 +303,105 @@ def test_native_names_are_in_their_own_script():
     assert translations.BUNDLES["hi"][1] == "हिन्दी"
     assert translations.BUNDLES["ta"][1] == "தமிழ்"
     assert all(native for _, native, _ in translations.BUNDLES.values())
+
+
+def test_offline_chat_answers_the_questions_evaluators_actually_ask():
+    """Ranking, bands, compliance, health, archetypes, behaviour — all from real numbers."""
+    from mplads import chat
+
+    expected = {
+        "how do you rank leads?": "Audit-ROI",
+        "what does HIGH confidence mean?": "independent signal families",
+        "what compliance checks are there?": "compliance checks",
+        "what is the health index?": "out of 100",
+        "what work types did you discover?": "work types on its own",
+        "has agency behaviour changed?": "change-point",
+    }
+    for question, fragment in expected.items():
+        answer = chat.answer_offline(question)
+        assert fragment in answer["text"], f"{question!r} fell through to the fallback"
+        assert answer["tools_used"], f"{question!r} answered without consulting a tool"
+
+
+def test_a_plea_for_assistance_is_a_search_not_a_menu():
+    """"help me with school buildings" is a search. Matching the word alone swallowed it."""
+    from mplads import chat
+
+    searched = chat.answer_offline("help me with school buildings")
+    assert "works match that" in searched["text"]
+
+    menu = chat.answer_offline("what can you do?")
+    assert "Ask me for" in menu["text"]
+
+
+def test_natural_phrasing_reaches_the_corpus():
+    from mplads import chat
+
+    for question in ["can you tell me about solar street lights",
+                     "show me community halls in Kerala"]:
+        answer = chat.answer_offline(question)
+        assert "could not find anything" not in answer["text"], question
+
+
+# ------------------------------------------------ what the assistant advertises
+
+
+def test_every_starter_prompt_the_ui_offers_actually_answers():
+    """A suggestion chip that dead-ends is worse than no chip.
+
+    These are the prompts the assistant panel puts in front of a judge, so each one has to
+    reach a real answer from the deterministic router — the path that runs when the live
+    model is unreachable, which is the path a demo actually takes.
+    """
+    from mplads import chat
+    from mplads.api.app import PROMPT_CATEGORIES
+
+    dead = [
+        prompt
+        for category in PROMPT_CATEGORIES
+        for prompt in category["prompts"]
+        if "could not find anything" in chat.answer_offline(prompt)["text"]
+    ]
+    assert not dead, f"starter prompts with no answer: {dead}"
+
+
+def test_the_advertised_languages_are_ones_the_backend_speaks():
+    """A picker offering a language nothing downstream speaks is a promise we cannot keep."""
+    from mplads import llm
+    from mplads.api.app import chat_capabilities
+
+    assert chat_capabilities()["languages"] == llm.LANGUAGES
+
+
+def test_capabilities_warns_that_translation_needs_the_live_model():
+    """`live` only means the key parses. The router answers in English regardless."""
+    from mplads.api.app import chat_capabilities
+
+    note = chat_capabilities()["translation_note"].lower()
+    assert "english" in note and "live model" in note
+
+
+def test_the_portfolio_figures_the_intro_quotes_come_from_the_artifacts():
+    from mplads.api.app import chat_capabilities, store
+
+    portfolio = chat_capabilities()["portfolio"]
+    national = store().stats["national"]
+    assert portfolio["works"] == national["total_works"]
+    assert portfolio["leads"] == national["surfaced_leads"]
+
+
+def test_an_agency_named_in_a_question_is_looked_up():
+    from mplads import chat
+
+    answer = chat.answer_offline("tell me about the SARAN implementing agency")
+    assert "t_agency_profile" in answer["tools_used"]
+    assert "works worth" in answer["text"]
+
+
+def test_a_counting_question_is_not_mistaken_for_an_agency_name():
+    """"many" is a substring of the real agency "Parvathipuram Manyam"."""
+    from mplads import chat
+
+    answer = chat.answer_offline("how many agencies are there?")
+    assert "778" in answer["text"]
+    assert "t_agency_profile" not in answer["tools_used"]
