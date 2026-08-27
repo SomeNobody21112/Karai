@@ -110,12 +110,12 @@ function NotFound() {
   const { pathname } = useLocation();
   return (
     <>
-      <Topbar title={t("notFound.title", "Page not found")} sub={pathname} />
+      <Topbar title={t("common.notFound", "Page not found")} sub={pathname} />
       <div className="content">
         <div className="empty">
-          {t("notFound.body", "There is nothing at this address.")}{" "}
+          {t("common.notFoundBody", "There is nothing at this address.")}{" "}
           <Link to="/overview" className="link">
-            {t("notFound.cta", "Go to the National Overview")}
+            {t("common.notFoundCta", "Go to the National Overview")}
           </Link>
         </div>
       </div>
