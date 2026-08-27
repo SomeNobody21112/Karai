@@ -279,10 +279,23 @@ This is the newest and most impressive part. Full detail in `demo/WALKTHROUGH.md
 > "And it is a **question, not a finding**. Two phases of the same road legitimately look
 > identical from the roadside. The system asks; a human answers."
 
-**4. It admits when it cannot read.** Upload `05-board-weathered.png`.
+**4. ⭐ It admits when it is not sure — and this is the honest one.** Upload
+`05-board-weathered.png`.
 
-> "Faded and out of focus, the way boards actually look. Confidence drops, fields come back
-> empty, and it says so — for the officer to correct. It never quietly guesses."
+> "Faded and out of focus, the way boards actually look. Now watch what it does *not* do.
+>
+> It reads a work reference at 99.6% confidence — and that confidence is real, but it is
+> confidence in the **pixels**, not in the answer. One digit is wrong. And because MPLADS
+> reference numbers run in sequence, the wrong one is also a real work: two gym
+> installations at two schools in the same block, with the same sanctioned amount. Character
+> confidence cannot tell them apart. Neither can the amount.
+>
+> So it does not settle it. It shows every real work that differs by one character, says the
+> reader cannot choose between them, and will not let the officer save until they confirm
+> which board they actually photographed.
+>
+> A system that guessed here would be right most of the time and silently, confidently wrong
+> the rest. We would rather ask."
 
 ### Why this matters most (the strongest point in the whole demo)
 
@@ -294,7 +307,9 @@ This is the newest and most impressive part. Full detail in `demo/WALKTHROUGH.md
 > visit at a time. At about 500 of them, our scoring weights stop being reasoned defaults and
 > start being fitted to what officers actually confirmed.
 >
-> We have **3**. And the Data Transparency screen says '3' rather than implying we are done."
+> The Data Transparency screen shows the running count and how many are still needed — and
+> it excludes the demonstration records seeded for this walkthrough from that number, so
+> nothing on this stage inflates it."
 
 ---
 

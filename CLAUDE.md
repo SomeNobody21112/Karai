@@ -16,7 +16,7 @@ explainable case file, and ranks case files by audit return-on-investment.
 engines, REST API with RBAC + audit log, React app with 9 screens, a data-grounded
 chatbot, 10 languages, and a synthetic-validation harness all work end to end.
 
-## The five hard constraints
+## The six hard constraints
 
 Product constraints, not style preferences. They must survive into code and UI copy.
 
@@ -31,6 +31,12 @@ Product constraints, not style preferences. They must survive into code and UI c
 4. **`ACTUAL_AMOUNT` is not expenditure.** 98.35% of completed works have it exactly equal
    to `RECOMMENDED_AMOUNT`; zero exceed 1.05×. No overrun signal exists. DATA_CONTRACT §6.
 5. **Human-in-the-loop.** Every recommendation ends in "a human should check X".
+6. **Field verification is the only ground truth there will ever be.** No dataset says
+   which works were problems, so nothing here has been validated against an outcome. What
+   an officer found on site is the sole exception, which is why those records are
+   immutable, attributed, and counted honestly: `field.label_readiness()` reports the gap
+   to 500 rather than implying it is closed, and records seeded for a walkthrough are
+   excluded from the count.
 
 ## Verified numbers — quote these, never estimate
 
@@ -50,7 +56,7 @@ Product constraints, not style preferences. They must survive into code and UI c
 | Agencies changed | 73 of 697 |
 | Health Index | 62.9 / 100 |
 | Synthetic validation | **69.2%** overall detection (stalled 96.1%, inflated 83.2%, break 58.0%, cloned 50.0%) |
-| Tests | **136 passing**, 2 skipped |
+| Tests | **186 passing**, 2 skipped |
 
 ## Stack & layout
 
@@ -67,19 +73,25 @@ src/mplads/
   intelligence/        duplicates · temporal · compliance · early_warning · transparency · labels
   validation/synthetic.py   plant known anomalies, measure detection
   llm.py               Claude briefings + translation, template fallback
-  chat.py              10 read-only data tools + deterministic offline router
+  chat.py              15 read-only tools over ALL 210,993 works + offline router
+  ocr.py               read a work board; refuses to settle an ambiguous reference
+  photohash.py         pHash + dHash — the same *picture*, not the same file
+  field.py             immutable, attributed site-verification records
   api/                 app.py · auth.py (JWT/RBAC) · audit.py (hash chain) · strings/translations
-frontend/src/          App · pages/ (9) · components/ · I18nContext · RoleContext · hooks · styles.css
+frontend/src/          App · pages/ (10) · components/ · AuthContext · I18nContext · RoleContext
+demo/                  WALKTHROUGH.md + 5 generated work-board photographs
+scripts/               profile_data.py · make_demo_data.py
 ```
 
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest                    # 136 tests
+.venv/Scripts/python.exe -m pytest                    # 186 tests
 .venv/Scripts/python.exe -m mplads.cli ingest         # raw -> data/interim (~40s)
 .venv/Scripts/python.exe -m mplads.cli train          # 3 models (~90s)
 .venv/Scripts/python.exe -m mplads.cli pipeline       # artifacts (~50s)
 .venv/Scripts/python.exe -m mplads.cli validate       # synthetic harness (~35s)
+.venv/Scripts/python.exe scripts/make_demo_data.py    # demo boards + seeded records
 .venv/Scripts/python.exe -m uvicorn mplads.api.app:app --port 8000
 cd frontend && npm run dev                            # needs PATH="/c/Program Files/nodejs:$PATH"
 ```
@@ -126,6 +138,35 @@ Light **parchment** ground `#f7f4ed`, ink text, **terracotta `#a8452a`** primary
 green secondary, aged brass for figures. **No blue anywhere** — that was a deliberate move
 away from the dark-blue dashboard look, which reads as an AI product. Fraunces (serif
 display) + Noto Sans (body, with all Indic subsets) + Roboto Mono (figures).
+
+**Severity is not a palette choice.** `frontend/src/severity.js` is the single source for
+every band, level and classification colour, with measured contrast ratios in its header —
+six pages each kept their own copy until HIGH and LOW ended up the same terracotta in two of
+them. Red and amber cannot be separated under deuteranopia, so severity is never carried by
+colour alone: every indicator also has a `glyph` (■ ▲ ◆ ● ·) and its text label.
+
+## The field-verification loop
+
+The one place in this product that creates data. `POST /api/ocr` reads a photographed work
+board, matches it against **all 210,993 works** (not just the leads), and fingerprints it
+against every photograph submitted before. `POST /api/verify/{work_ref}` appends what the
+officer found. Three rules hold it together:
+
+- **A match is never settled by the machine.** OCR confidence is confidence in the pixels.
+  A weathered board reads one digit wrong at 99.6% and lands on a *different real work* —
+  MPLADS references run in sequence. So `ocr.match_to_work` returns every real reference one
+  character away, cross-checks the amount painted on the board, and sets
+  `needs_confirmation`; the UI will not save until a human ticks the box.
+- **A re-used photograph is a question, not a finding.** `photohash` catches a resized,
+  re-compressed, brightened copy that a checksum misses — but two phases of one road
+  legitimately look identical from the roadside. Report, never conclude.
+- **Writing requires a name.** Reading is open (`REQUIRE_AUTH=0`); `auth.require_identity`
+  refuses an unattributed verification. A presented token is honoured even when auth is
+  optional — the flag says whether a badge is *required*, not whether we read the one given.
+
+Works that were never surfaced return a "clear record" case file rather than 404. That is
+not cosmetic: if only flagged works can be visited, every label ever collected is a positive
+and the weights can never be corrected by one.
 
 ## Open items
 
