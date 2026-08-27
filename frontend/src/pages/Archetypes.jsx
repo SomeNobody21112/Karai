@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, num, rupees } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
 import { riskFill } from "../severity.js";
+import { useI18n } from "../I18nContext.jsx";
 
 function Bar({ value, color }) {
   return (
@@ -16,18 +17,19 @@ export default function Archetypes() {
   const [a, setA] = useState(null);
   const [open, setOpen] = useState(null);
   const nav = useNavigate();
+  const { t } = useI18n();
   useEffect(() => { api.archetypes().then(setA).catch(console.error); }, []);
 
-  if (!a) return (<><Topbar title="Work Archetypes" /><div className="content"><Loading /></div></>);
+  if (!a) return (<><Topbar title={t("archetypes.title", "Work Archetypes")} /><div className="content"><Loading /></div></>);
 
   const interpretable = a.filter((x) => x.interpretable !== false).length;
   const maxWorks = Math.max(...a.map((x) => x.n_works));
 
   return (
     <>
-      <Topbar title="Work Archetypes"
-        sub="Work types the system discovered on its own from 1.88 lakh descriptions"
-        right={<span className="pill">{a.length} archetypes · {interpretable} named</span>} />
+      <Topbar title={t("archetypes.title", "Work Archetypes")}
+        sub={t("archetypes.sub", "Work types the system discovered on its own from the descriptions")}
+        right={<span className="pill">{a.length} · {interpretable} {t("archetypes.named", "named")}</span>} />
       <div className="content">
         <div className="hitl">
           <span>🧩</span>
@@ -54,7 +56,7 @@ export default function Archetypes() {
                       {uninterpretable
                         ? <span className="muted">{x.label}</span>
                         : x.label}
-                      {uninterpretable && <span className="fam-tag">not interpretable</span>}
+                      {uninterpretable && <span className="fam-tag">{t("archetypes.notInterpretable", "not interpretable")}</span>}
                       {x.note && !uninterpretable && <span className="fam-tag">language-mixed</span>}
                     </div>
                     <div className="arch-sub">
@@ -66,21 +68,21 @@ export default function Archetypes() {
 
                   <div className="arch-metrics">
                     <div className="arch-metric">
-                      <span className="m-label">Median size</span>
+                      <span className="m-label">{t("archetypes.medianSize", "Median size")}</span>
                       <span className="m-value">{rupees(x.median_amount)}</span>
                     </div>
                     <div className="arch-metric">
-                      <span className="m-label">Completed</span>
+                      <span className="m-label">{t("archetypes.completedPct", "Completed")}</span>
                       <span className="m-value">{(x.completion_rate * 100).toFixed(0)}%</span>
                     </div>
                     <div className="arch-metric">
-                      <span className="m-label">Typical duration</span>
+                      <span className="m-label">{t("archetypes.typicalDuration", "Typical duration")}</span>
                       <span className="m-value">
                         {x.median_days_to_complete ? `${Math.round(x.median_days_to_complete)}d` : "—"}
                       </span>
                     </div>
                     <div className="arch-metric">
-                      <span className="m-label">Flagged</span>
+                      <span className="m-label">{t("archetypes.flagged", "Flagged")}</span>
                       <span className="m-value" style={{ color: riskFill(x.lead_rate) }}>
                         {(x.lead_rate * 100).toFixed(0)}%
                       </span>
@@ -99,7 +101,7 @@ export default function Archetypes() {
                     {x.top_terms && (
                       <div>
                         <div className="m-label" style={{ marginBottom: 6 }}>
-                          Distinctive terms in this cluster
+                          {t("archetypes.distinctiveTerms", "Distinctive terms in this cluster")}
                         </div>
                         <div className="chips">
                           {x.top_terms.split(",").slice(0, 8).map((t, ti) => (
@@ -110,7 +112,7 @@ export default function Archetypes() {
                     )}
                     <button className="btn" style={{ marginTop: 14 }}
                       onClick={(e) => { e.stopPropagation(); nav("/worklist"); }}>
-                      View flagged works in the queue →
+                      {t("archetypes.viewFlagged", "View flagged works in the queue")} →
                     </button>
                   </div>
                 )}

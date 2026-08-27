@@ -3,6 +3,7 @@ import { api, num } from "../api.js";
 import { Loading, Topbar } from "../components/Bits.jsx";
 import { Reveal } from "../components/Reveal.jsx";
 import { scoreFill, sev } from "../severity.js";
+import { useI18n } from "../I18nContext.jsx";
 
 /**
  * How far a number is from the raw record. Measured straight from government data
@@ -27,17 +28,18 @@ const CONFIDENCE = { High: "LOW", Medium: "MEDIUM", Low: "HIGH", None: "HIGH" };
 
 export default function Transparency() {
   const [d, setD] = useState(null);
+  const { t } = useI18n();
   useEffect(() => { api.transparency().then(setD).catch(console.error); }, []);
 
-  if (!d) return (<><Topbar title="Data Transparency" /><div className="content"><Loading /></div></>);
+  if (!d) return (<><Topbar title={t("transparency.title", "Data Transparency")} /><div className="content"><Loading /></div></>);
 
   const group = (type) => d.metrics.filter((m) => m.type === type);
 
   return (
     <>
-      <Topbar title="Data Transparency"
-        sub="What we measure, what we derive, and what the public data does not contain"
-        right={<span className="pill">{d.totals.unavailable_metrics} fields unavailable</span>} />
+      <Topbar title={t("transparency.title", "Data Transparency")}
+        sub={t("transparency.sub", "What we measure, what we derive, and what the public data does not contain")}
+        right={<span className="pill">{d.totals.unavailable_metrics} {t("transparency.fieldsUnavailable", "fields unavailable")}</span>} />
       <div className="content">
         <div className="hitl">
           <span>🔒</span>
@@ -46,19 +48,19 @@ export default function Transparency() {
 
         <Reveal><div className="grid cols-3">
           <div className="card stat">
-            <div className="label">Measured directly</div>
+            <div className="label">{t("transparency.measured", "Measured directly")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("LOW").ink }}>{d.totals.available_metrics}</div>
-            <div className="foot">straight from government records</div>
+            <div className="foot">{t("transparency.measuredFoot", "straight from government records")}</div>
           </div>
           <div className="card stat">
-            <div className="label">Model-derived</div>
+            <div className="label">{t("transparency.derived", "Model-derived")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("MEDIUM").ink }}>{d.totals.derived_metrics}</div>
-            <div className="foot">computed, with stated confidence</div>
+            <div className="foot">{t("transparency.derivedFoot", "computed, with stated confidence")}</div>
           </div>
           <div className="card stat">
-            <div className="label">Unavailable</div>
+            <div className="label">{t("transparency.unavailable", "Unavailable")}</div>
             <div className="value" style={{ fontSize: 28, color: sev("HIGH").ink }}>{d.totals.unavailable_metrics}</div>
-            <div className="foot">absent from public data — not faked</div>
+            <div className="foot">{t("transparency.unavailableFoot", "absent from public data — not faked")}</div>
           </div>
         </div>
 
@@ -68,7 +70,8 @@ export default function Transparency() {
             <div className="section-title">{TYPE[type].t}</div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Metric</th><th>Source</th><th>Confidence</th><th>Note</th></tr></thead>
+                <thead><tr><th>{t("transparency.metric", "Metric")}</th><th>{t("transparency.source", "Source")}</th>
+                  <th>{t("transparency.confidenceCol", "Confidence")}</th><th>{t("transparency.note", "Note")}</th></tr></thead>
                 <tbody>
                   {group(type).map((m) => (
                     <tr key={m.metric}>
@@ -92,7 +95,7 @@ export default function Transparency() {
           </div>
         ))}
 
-        <div className="section-title">Field completeness (measured)</div>
+        <div className="section-title">{t("transparency.completeness", "Field completeness (measured)")}</div>
         <div className="card">
           {d.completeness.map((f) => (
             <div key={f.field} style={{ marginBottom: 10 }}>
@@ -109,7 +112,7 @@ export default function Transparency() {
         <div className="section-title">Ground truth from the field</div>
         <GroundTruth />
 
-        <div className="section-title">Ready for restricted government data</div>
+        <div className="section-title">{t("transparency.readyFor", "Ready for restricted government data")}</div>
         <div className="card">
           <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
             The ingestion schema already carries typed, optional interfaces for the fields a
@@ -146,6 +149,7 @@ export default function Transparency() {
  */
 function GroundTruth() {
   const [d, setD] = useState(null);
+  const { t } = useI18n();
   useEffect(() => { api.fieldSummary().then(setD).catch(() => setD({ error: true })); }, []);
 
   if (!d) return <div className="card"><Loading /></div>;
