@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # mplads-intel
 
 AI-assisted forensic monitoring and decision support over MPLADS / eSAKSHI work-lifecycle
@@ -44,3 +45,7 @@ contains, measured, including what must never be used and why.
 | [CLAUDE.md](CLAUDE.md) | Standing context: constraints, conventions, layout, phase list |
 | [docs/DATA_CONTRACT.md](docs/DATA_CONTRACT.md) | Every column, the join key, orphan counts, the DO-NOT-USE list |
 | `docs/data_profile.txt` | Generated profile of every raw file |
+=======
+# Thadam
+An AI-powered system to detect anomalies, inefficiencies, and investigation leads in MPLAD Scheme implementation, built on ~211k real work-level records. It combines work-archetype clustering, peer-conditional statistical outlier detection, survivorship-corrected completion-risk (money-at-risk) scoring, entity behavioural change-point detection, and audit-ROI targeting to rank where auditors should look first — deliberately outputting prioritised leads with evidence, never fraud verdicts. Submission for Smart India Hackathon 2026, PS SIH26102 (MoSPI).
+>>>>>>> 1e3cdb5436d210d17d52f1439415f43004c2c17a
