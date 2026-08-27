@@ -176,4 +176,7 @@ and the weights can never be corrected by one.
 2. **Docker not installed** — packaging is the only FRD phase not attempted.
 3. **`FLAG = 2`** (957 works) meaning still UNVERIFIED. The Vonter file's
    `Rejected by IDA` column may answer it empirically. DATA_CONTRACT §13 Q1.
-4. **Vite may bind 5174** if an old process holds 5173. Kill stale servers before demoing.
+4. **Vite honours `PORT`** and `.claude/launch.json` sets `autoPort`, so tooling that
+   starts the dev server takes any free port instead of silently landing on 5174 while
+   everything else still points at 5173. Running `npm run dev` by hand still gets 5173.
+   Kill stale servers before demoing anyway — two copies of the app is its own confusion.
