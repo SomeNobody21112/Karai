@@ -303,3 +303,41 @@ def test_native_names_are_in_their_own_script():
     assert translations.BUNDLES["hi"][1] == "हिन्दी"
     assert translations.BUNDLES["ta"][1] == "தமிழ்"
     assert all(native for _, native, _ in translations.BUNDLES.values())
+
+
+def test_offline_chat_answers_the_questions_evaluators_actually_ask():
+    """Ranking, bands, compliance, health, archetypes, behaviour — all from real numbers."""
+    from mplads import chat
+
+    expected = {
+        "how do you rank leads?": "Audit-ROI",
+        "what does HIGH confidence mean?": "independent signal families",
+        "what compliance checks are there?": "compliance checks",
+        "what is the health index?": "out of 100",
+        "what work types did you discover?": "work types on its own",
+        "has agency behaviour changed?": "change-point",
+    }
+    for question, fragment in expected.items():
+        answer = chat.answer_offline(question)
+        assert fragment in answer["text"], f"{question!r} fell through to the fallback"
+        assert answer["tools_used"], f"{question!r} answered without consulting a tool"
+
+
+def test_a_plea_for_assistance_is_a_search_not_a_menu():
+    """"help me with school buildings" is a search. Matching the word alone swallowed it."""
+    from mplads import chat
+
+    searched = chat.answer_offline("help me with school buildings")
+    assert "works match that" in searched["text"]
+
+    menu = chat.answer_offline("what can you do?")
+    assert "Ask me for" in menu["text"]
+
+
+def test_natural_phrasing_reaches_the_corpus():
+    from mplads import chat
+
+    for question in ["can you tell me about solar street lights",
+                     "show me community halls in Kerala"]:
+        answer = chat.answer_offline(question)
+        assert "could not find anything" not in answer["text"], question

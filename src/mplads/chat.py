@@ -100,6 +100,10 @@ STOPWORDS = frozenset({
     "of", "the", "a", "an", "in", "at", "for", "to", "and", "or", "on", "with", "by",
     "work", "works", "construction", "show", "me", "list", "find", "all", "what", "which",
     "how", "many", "much", "is", "are", "there", "any",
+    # How people actually phrase a request, rather than how a description is written.
+    "help", "please", "can", "you", "give", "tell", "about", "some", "get", "i", "want",
+    "need", "do", "does", "did", "was", "were", "be", "been", "my", "our", "it", "that",
+    "this", "these", "those", "from", "up", "out", "look", "search", "see", "know",
 })
 
 
@@ -639,6 +643,99 @@ def answer_offline(question: str) -> dict:
             "we report peer-relative amount anomalies and administrative lifecycle "
             "progress instead, and say plainly what is missing.",
             "t_data_limitations")
+
+    # --- how the ranking itself works. Asked constantly in evaluation, and the honest
+    # answer is short, so it should never fall through to a corpus search.
+    if has("audit-roi", "audit roi", "rank", "ranking", "ranked",
+           "prioritis", "prioritiz", "why this order"):
+        return _said(
+            "Leads are ranked by Audit-ROI — priority multiplied by rupee exposure "
+            "multiplied by corroboration. In plain terms: how unusual it is, how much money "
+            "is at stake, and how many independent signal families agree. An inspector has a "
+            "finite number of days, so this ranks by where one of those days is worth most. "
+            "It is a triage order, never a measure of guilt.",
+            "t_portfolio_summary")
+
+    if has("confidence", "band", "signal famil", "corroborat", "how many signals"):
+        bands = n.get("bands") or {}
+        return _said(
+            f"A band counts how many independent signal families agreed on one work. HIGH "
+            f"means three or more ({bands.get('HIGH', 0):,} works), MEDIUM means two "
+            f"({bands.get('MEDIUM', 0):,}), LOW means one ({bands.get('LOW', 0):,}) — and a "
+            f"single signal on its own is usually noise. The families are amount, duration, "
+            f"lifecycle, behaviour, multivariate outlier and duplication; they are kept "
+            f"independent so that one being wrong does not carry the others.",
+            "t_portfolio_summary")
+
+    if has("compliance", "lifecycle check", "rule", "statutory", "deviation", "authority"):
+        compliance = store.stats.get("compliance", {}) or {}
+        checks = compliance.get("checks", []) or []
+        top = sorted(checks, key=lambda c: c.get("works_affected", 0), reverse=True)[:3]
+        listed = "; ".join(
+            f"{c.get('check')} ({c.get('works_affected', 0):,} works, "
+            f"{str(c.get('authority', '')).replace('_', ' ').lower()})"
+            for c in top
+        )
+        return _said(
+            f"There are {len(checks)} lifecycle compliance checks. The largest are: {listed}. "
+            f"Every check declares its own authority, and none of them claims to be an "
+            f"official rule — no statutory threshold ships with this public data, so calling "
+            f"an outlier a legal breach would be inventing law.",
+            "t_compliance_summary")
+
+    if has("health index", "health score", "how healthy", "overall health"):
+        health = store.stats.get("health_index", {}) or {}
+        components = health.get("components", []) or []
+        weakest = min(components, key=lambda c: c.get("value", 1)) if components else None
+        tail = (f" The weakest component is {weakest.get('name')} at "
+                f"{weakest.get('value', 0) * 100:.1f}%." if weakest else "")
+        return _said(
+            f"The MPLADS Operational Health Index is {health.get('score')} out of 100, built "
+            f"from {len(components)} weighted components that are each shown with their "
+            f"weight and explanation.{tail} It is a summary of administrative health, not a "
+            f"judgement about any person.",
+            "t_compliance_summary")
+
+    if has("archetype", "work type", "types of work", "cluster", "categories discovered"):
+        rows = json.loads(t_archetype_list(3))
+        listed = "; ".join(
+            f"{r['label']} ({r['works']:,} works)" for r in rows if r.get("label")
+        )
+        clustering = store.metrics.get("archetype_clustering", {})
+        return _said(
+            f"The system discovered {clustering.get('k_chosen', 50)} work types on its own by "
+            f"grouping the descriptions — nobody supplied the categories. The largest are: "
+            f"{listed}. Forty-nine were given names from their own most distinctive terms; "
+            f"one is labelled uninterpretable because it is held together by language rather "
+            f"than by work type, and saying so beats inventing a name.",
+            "t_archetype_list")
+
+    if has("behaviour", "behavior", "change over time", "changed", "trend", "temporal",
+           "change-point", "change point"):
+        counts = (store.temporal or {}).get("counts", {})
+        return _said(
+            f"Of {counts.get('agencies_analysed', 0):,} implementing agencies with enough "
+            f"history to test, {counts.get('agencies_changed', 0):,} show a statistical "
+            f"change-point — a measurable break between how they behaved before and after. "
+            f"A change-point is not wrongdoing. A new officer, a new scheme or a flood all "
+            f"produce one. It means something changed and is worth asking about.",
+            "t_state_breakdown")
+
+    # "help" only when the question is a plea for the menu, never as a stray word —
+    # "help me find road works in Bihar" is a search, and matching it here swallowed one.
+    asking_for_the_menu = (
+        has("what can you do", "what can i ask", "how do i use", "what do you know")
+        or q.strip(" ?!.") in {"help", "help me", "menu", "commands"}
+    )
+    if asking_for_the_menu:
+        return _said(
+            "I answer from the computed results only — I have no independent knowledge of "
+            "this data and cannot do arithmetic, so I cannot invent a figure. Ask me for the "
+            "national picture, a state, a specific work reference like MP3018356-W86316, the "
+            "top leads, what exposure means, how ranking works, near-duplicates, compliance "
+            "checks, the trained models and their limits, what officers found in the field, "
+            "or what this data cannot tell you.",
+            "t_portfolio_summary")
 
     if has("model", "accuracy", "trained", "c-index", "silhouette", "machine learning"):
         m = store.metrics
