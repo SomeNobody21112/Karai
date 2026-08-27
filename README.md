@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# mplads-intel
+# Thadam - (mplads -intel) 
 
 AI-assisted forensic monitoring and decision support over MPLADS / eSAKSHI work-lifecycle
 data. It learns what normal work looks like across the national portfolio, compares each
