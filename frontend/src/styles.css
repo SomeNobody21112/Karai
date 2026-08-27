@@ -601,60 +601,11 @@ tbody tr:last-child td { border-bottom: none; }
   color: var(--text-3); font-size: 12px; line-height: 1.95; background: var(--bg-1);
 }
 
-/* ============================================================ ASSISTANT */
-.chat-fab {
-  position: fixed; right: 26px; bottom: 26px; z-index: 60;
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--brick); color: #fff; font-size: 18px;
-  display: grid; place-items: center; box-shadow: var(--shadow-3);
-  transition: transform 0.24s var(--ease), background 0.2s;
-}
-.chat-fab:hover { transform: translateY(-3px); background: var(--brick-deep); }
-.chat-fab.open { background: var(--text); }
-
-.chat-panel {
-  position: fixed; right: 26px; bottom: 90px; z-index: 60;
-  width: min(430px, calc(100vw - 40px)); height: min(620px, calc(100vh - 150px));
-  background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r-lg);
-  display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-3);
-  animation: fadeUp 0.26s var(--ease);
-}
-.chat-head { display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 19px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
-.chat-title { font-size: 14px; font-weight: 600; font-family: "Fraunces", Georgia, serif; }
-.chat-sub { font-size: 10px; color: var(--text-3); margin-top: 2px;
-  font-family: "Roboto Mono", monospace; }
-.chat-x { color: var(--text-3); font-size: 14px; padding: 4px; }
-.chat-x:hover { color: var(--text); }
-
-.chat-body { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-.chat-intro { color: var(--text-2); font-size: 12.8px; line-height: 1.72; }
-.chat-chips { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; }
-.chat-chip { text-align: left; font-size: 12.2px; padding: 10px 13px; border-radius: var(--r-sm);
-  background: var(--bg-1); border: 1px solid var(--line); color: var(--text-2);
-  transition: border-color 0.18s, color 0.18s; }
-.chat-chip:hover { border-color: var(--brick); color: var(--brick-deep); }
-
-.chat-turn { display: flex; flex-direction: column; gap: 6px; }
-.chat-turn.user { align-items: flex-end; }
-.chat-bubble { max-width: 88%; padding: 11px 15px; border-radius: var(--r); font-size: 12.8px;
-  line-height: 1.7; white-space: pre-wrap; }
-.chat-turn.user .chat-bubble { background: var(--brick); color: #fff; }
-.chat-turn.assistant .chat-bubble { background: var(--bg-2); border: 1px solid var(--line);
-  color: var(--text-2); }
-.chat-ref { color: var(--brick); cursor: pointer; border-bottom: 1px dotted var(--brick);
-  font-family: "Roboto Mono", monospace; font-size: 12px; }
-.chat-tools { display: flex; flex-wrap: wrap; gap: 5px; }
-.chat-tool { font-size: 9px; padding: 2px 8px; border-radius: 20px; color: var(--forest);
-  background: var(--forest-soft); font-family: "Roboto Mono", monospace; }
-.chat-typing { display: flex; gap: 5px; align-items: center; }
-.chat-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3);
-  animation: pulseDot 1.1s infinite; }
-.chat-typing i:nth-child(2) { animation-delay: 0.18s; }
-.chat-typing i:nth-child(3) { animation-delay: 0.36s; }
-.chat-input-row { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line);
-  background: var(--bg-2); }
-.chat-input { flex: 1; min-width: 0; }
+/* ============================================================ ASSISTANT
+ * Moved to components/Chat.css, which the component imports. It is the one piece of
+ * chrome that overlays every screen, and having half its rules here meant a change to
+ * the panel silently lost to whichever stylesheet loaded second.
+ */
 
 @media (max-width: 1000px) {
   .landing-nav { padding: 0 18px; }

@@ -443,15 +443,95 @@ def chat(req: ChatRequest) -> dict:
     return chatbot.answer(req.question.strip(), history=history, language=req.lang)
 
 
+#: Starter prompts, grouped. Every one of these is a question the deterministic router
+#: answers from real artifacts — a suggestion chip that leads to "I could not find anything"
+#: is worse than no chip, so these are chosen from what is actually wired up, not from what
+#: would sound impressive.
+PROMPT_CATEGORIES = [
+    {
+        "category": "Portfolio & scale",
+        "icon": "\u25a4",
+        "prompts": [
+            "How many works and leads are in the national portfolio?",
+            "What does exposure at risk mean?",
+            "What is the health index?",
+            "What categories of work get built?",
+        ],
+    },
+    {
+        "category": "Leads & ranking",
+        "icon": "\u25c8",
+        "prompts": [
+            "Show me the top leads",
+            "How do you rank leads?",
+            "What does HIGH confidence mean?",
+            "Tell me about MP3018356-W86316",
+        ],
+    },
+    {
+        "category": "States & agencies",
+        "icon": "\u2691",
+        "prompts": [
+            "What has Bihar recommended?",
+            "Tell me about the SARAN implementing agency",
+            "Has agency behaviour changed?",
+            "Show me solar street lights",
+        ],
+    },
+    {
+        "category": "Method & limits",
+        "icon": "\u25c9",
+        "prompts": [
+            "How accurate is the model?",
+            "What compliance checks are there?",
+            "Can you detect cost overruns?",
+            "What work types did you discover?",
+        ],
+    },
+    {
+        "category": "Field verification",
+        "icon": "\u2713",
+        "prompts": [
+            "What have officers verified in the field?",
+            "Has any photograph been re-used?",
+            "What is the only real ground truth here?",
+        ],
+    },
+]
+
+
 @app.get("/api/chat/capabilities")
 def chat_capabilities() -> dict:
-    """What the assistant can look up, and whether it is running live or offline."""
+    """What the assistant can look up, and whether it is running live or offline.
+
+    `languages` comes from what the translation layer actually supports rather than a list
+    written in the client — a picker offering a language nothing downstream speaks is a
+    promise the product cannot keep.
+
+    `translation_note` exists because "live" only means the API key parses. When the model
+    is unreachable for any reason the assistant falls back to the deterministic router,
+    which answers in English whichever language was asked for. The client says so rather
+    than letting a Tamil question quietly return English.
+    """
+    national = (store().stats.get("national") or {})
     return {
         "live": llm.available(),
+        "languages": llm.LANGUAGES,
+        "translation_note": (
+            "Replies are translated only while the live model is reachable. If it is not, "
+            "the deterministic engine answers from the same data in English."
+        ),
         "tools": [
             {"name": name, "does": (fn.__doc__ or "").strip().splitlines()[0]}
             for name, fn in chatbot.TOOL_FUNCS.items()
         ],
+        "portfolio": {
+            "works": national.get("total_works"),
+            "states": national.get("states"),
+            "leads": national.get("surfaced_leads"),
+            "agencies": national.get("implementing_agencies"),
+        },
+        "categories": PROMPT_CATEGORIES,
         "suggestions": [
             "How many investigation leads are there?",
             "Show me the top leads",

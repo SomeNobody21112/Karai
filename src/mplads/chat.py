@@ -582,6 +582,13 @@ def answer_offline(question: str) -> dict:
     if has("photo", "photograph", "picture", "image", "ocr", "scan", "board"):
         return _answer_photos()
 
+    # --- a named implementing agency. Before the state check: an agency name often
+    # contains its state, and "the Bihar agency" is a question about the agency.
+    if has("agency", "agencies", "implementing", "_ida", "ida "):
+        agency = _answer_agency(question)
+        if agency is not None:
+            return agency
+
     # --- a named state
     for lowered, canonical in _states().items():
         if lowered in q and len(lowered) > 4:
@@ -749,6 +756,13 @@ def answer_offline(question: str) -> dict:
             f"this data, so nothing could be learned from them.",
             "t_model_metrics")
 
+    if has("how many agenc", "number of agenc", "how many implementing"):
+        return _said(
+            f"{n.get('implementing_agencies'):,} implementing agencies appear in the "
+            f"portfolio, across {n.get('states')} states. Name one and I will give you its "
+            f"works, money, completion rate and how many were surfaced for review.",
+            "t_portfolio_summary")
+
     if has("how many work", "total work", "how big", "scale", "overview", "summary"):
         return _said(
             f"The portfolio holds {n.get('total_works'):,} works worth "
@@ -797,6 +811,73 @@ def _answer_work(ref: str) -> dict:
         text += (f" An officer visited on {latest['when']} and recorded "
                  f"{latest['outcome'].replace('_', ' ').lower()}.")
     return _said(text, "t_work_lookup", "t_field_verifications")
+
+
+#: Words that describe *what kind of thing* is being asked about rather than naming it.
+#: Stripped before an agency name is extracted, so "tell me about the SARAN implementing
+#: agency" searches for "SARAN" and not for the word "agency".
+_AGENCY_NOISE = frozenset({
+    "agency", "agencies", "implementing", "the", "a", "an", "tell", "me", "about", "what",
+    "is", "are", "of", "for", "in", "show", "give", "profile", "details", "detail", "on",
+    "how", "does", "do", "did", "perform", "performance", "look", "like", "please", "can",
+    "you", "i", "want", "know", "any", "this", "that", "which", "office", "and",
+    # Counting and superlative words. "how many agencies are there" names no agency, and
+    # "many" is a substring of the real agency "Parvathipuram Manyam".
+    "many", "much", "most", "least", "has", "have", "had", "there", "who", "list", "all",
+    "top", "biggest", "largest", "smallest", "worst", "best", "number", "count", "total",
+    "works", "work", "them", "their", "its", "with", "by", "from", "at", "to",
+})
+
+
+def _answer_agency(question: str) -> dict | None:
+    """One implementing agency's portfolio, or None to let the router keep looking.
+
+    Returning None rather than an apology matters: "how many agencies are there" contains
+    the word agency but names none, and belongs to the portfolio summary further down.
+    """
+    words = [w for w in re.findall(r"[\w&]+", question.lower())
+             if w not in _AGENCY_NOISE]
+    if not words:
+        return None
+
+    # Longest run of remaining words first: agency names are multi-word ("DISTRICT
+    # PLANNING OFFICE SARAN"), and the longest phrase that still matches is the most
+    # specific answer we can give.
+    for size in range(len(words), 0, -1):
+        for start in range(len(words) - size + 1):
+            needle = " ".join(words[start:start + size])
+            if len(needle) < 4:
+                continue
+            found = json.loads(t_agency_profile(needle))
+            if found.get("found") and _names_a_real_agency(needle, found):
+                return _said(_agency_sentence(found), "t_agency_profile")
+    return None
+
+
+def _names_a_real_agency(needle: str, found: dict) -> bool:
+    """Did the question name this agency, or merely share letters with it?
+
+    `t_agency_profile` matches on a plain substring, which is right for a model that can
+    judge the result for itself and wrong for a router that cannot. "many" is inside
+    "Parvathipuram Manyam", so an ordinary counting question came back as a confident
+    profile of one district in Andhra Pradesh. Requiring the match to start on a word
+    boundary keeps the deliberate partials ("SARAN", "DARBHANGA") and drops the accidents.
+    """
+    pattern = re.compile(r"\b" + re.escape(needle), re.I)
+    return any(pattern.search(name) for name in found["agencies_matched"])
+
+
+def _agency_sentence(found: dict) -> str:
+    names = found["agencies_matched"]
+    who = names[0] if len(names) == 1 else f"{len(names)} agencies matching that"
+    return (
+        f"{who} — {found['works']:,} works worth "
+        f"{_fmt_rupees(found['total_recommended_rupees'])}, {found['completed']:,} of them "
+        f"complete ({found['completion_rate']:.0%}). {found['surfaced_as_leads']:,} were "
+        f"surfaced for review, {found['high_confidence_leads']:,} at HIGH confidence, "
+        f"carrying {_fmt_rupees(found['exposure_rupees'])} of exposure. An implementing "
+        f"agency executes works; it does not choose them."
+    )
 
 
 def _answer_state(state: str) -> dict:
